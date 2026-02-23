@@ -1,6 +1,14 @@
 {
+  "name": "chat-pro",
+  "version": "1.0.0",
+  "description": "Super App de Chat",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4",
+    "mongoose": "^8.2.0"
   }
 }
