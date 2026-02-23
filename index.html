@@ -101,7 +101,7 @@
             const file = this.files[0];
             if (file) {
                 // Protegemos para que no suban archivos muy pesados (Límite: 2MB)
-                if (file.size > 2 * 1024 * 1024) {
+                if (file.size > 10 * 1024 * 1024) {
                     alert("¡Ups! La imagen es muy pesada. Intenta con una menor a 2MB.");
                     this.value = ''; // Limpiar
                     return;
@@ -158,3 +158,4 @@
     </script>
 </body>
 </html>
+
