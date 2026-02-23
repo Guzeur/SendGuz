@@ -47,5 +47,6 @@ io.on('connection', (socket) => {
 // La nube elegirá el puerto, o usará el 3000 si estás en tu PC local
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
-  console.log(Servidor Pro corriendo en puerto ${PORT});
+  console.log("Servidor Pro corriendo en puerto"+ PORT);
 });
+
