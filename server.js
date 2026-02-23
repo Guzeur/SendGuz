@@ -1,4 +1,3 @@
-
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
@@ -12,14 +11,20 @@ app.get('/', (req, res) => {
 // --- CONEXIÓN A LA BASE DE DATOS ---
 const mongoURI = process.env.MONGO_URI;
 if (mongoURI) {
-  mongoose.connect(mongoURI)
-    .then(() => console.log('✅ Base de datos conectada'))
-    .catch(err => console.log('❌ Error en base de datos:', err));
+  mongoose.connect(mongoURI).then(() => console.log('✅ Base de datos conectada')).catch(e => console.log(e));
 }
 
-// --- ESQUEMA DE MENSAJE (Cómo se guardan los datos) ---
+// --- 1. NUEVO ESQUEMA: USUARIOS ---
+const userSchema = new mongoose.Schema({
+  username: { type: String, unique: true },
+  password: String // (Nota: En apps reales esto se encripta, aquí lo hacemos simple para aprender)
+});
+const User = mongoose.model('User', userSchema);
+
+// --- 2. ESQUEMA ACTUALIZADO: MENSAJES ---
 const messageSchema = new mongoose.Schema({
-  user: String,
+  sender: String,
+  receiver: String, // 'Global' o el nombre del usuario receptor
   text: String,
   type: String,
   time: String,
@@ -27,61 +32,87 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', messageSchema);
 
-let users = {};
+// Diccionario para saber exactamente qué computadora tiene cada usuario
+let connectedUsers = {};
 
 io.on('connection', (socket) => {
   
-  socket.on('set username', (username) => {
-    socket.username = username;
-    users[socket.id] = username;
-    io.emit('user list', Object.values(users));
-    console.log(username + " se unió");
+  // --- SISTEMA DE REGISTRO ---
+  socket.on('register', async (data) => {
+    if (!mongoURI) return socket.emit('auth_error', 'Base de datos no conectada');
+    try {
+      const existing = await User.findOne({ username: data.username });
+      if (existing) return socket.emit('auth_error', 'El usuario ya existe. Elige otro.');
+      
+      const newUser = new User({ username: data.username, password: data.password });
+      await newUser.save();
+      socket.emit('register_success', 'Cuenta creada. ¡Ahora inicia sesión!');
+    } catch(e) { socket.emit('auth_error', 'Error al registrar.'); }
+  });
 
-    // Cargar los últimos 50 mensajes y enviárselos SOLO al que acaba de entrar
-    if (mongoURI) {
-      Message.find().sort({ timestamp: 1 }).limit(50).then(messages => {
-        messages.forEach(msg => {
-          socket.emit('chat message', { user: msg.user, text: msg.text, type: msg.type, time: msg.time });
-        });
-      });
+  // --- SISTEMA DE LOGIN ---
+  socket.on('login', async (data) => {
+    if (!mongoURI) return socket.emit('auth_error', 'Base de datos no conectada');
+    const user = await User.findOne({ username: data.username, password: data.password });
+    
+    if (user) {
+      socket.username = user.username;
+      connectedUsers[user.username] = socket.id; // Vinculamos su nombre a su computadora actual
+      
+      socket.emit('login_success', user.username);
+      io.emit('user list', Object.keys(connectedUsers)); // Actualizar lista a todos
+      console.log(user.username + " ha iniciado sesión");
+
+      // Cargar historial: Solo los mensajes Globales y los Privados donde este usuario participa
+      const msgs = await Message.find({
+        $or: [
+          { receiver: 'Global' },
+          { sender: user.username },
+          { receiver: user.username }
+        ]
+      }).sort({ timestamp: 1 }).limit(100);
+      
+      socket.emit('load_history', msgs);
+    } else {
+      socket.emit('auth_error', 'Usuario o contraseña incorrectos.');
     }
   });
 
+  // --- SISTEMA DE MENSAJERÍA ---
   socket.on('chat message', (data) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
     const msgData = {
-      user: socket.username || 'Anónimo',
+      sender: socket.username,
+      receiver: data.receiver, // A quién va dirigido
       text: data.text,
       type: data.type,
       time: timeNow
     };
 
-    // Guardar en la base de datos permanente
-    if (mongoURI) {
-      const newMsg = new Message(msgData);
-      newMsg.save();
+    if (mongoURI) new Message(msgData).save();
+
+    if (data.receiver === 'Global') {
+      // Si es global, enviarlo a todos
+      io.emit('chat message', msgData);
+    } else {
+      // Si es privado, enviarlo SOLO al receptor y al remitente
+      const receiverSocketId = connectedUsers[data.receiver];
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('chat message', msgData); // Entregar al amigo
+      }
+      socket.emit('chat message', msgData); // Mostrármelo a mí mismo
     }
-
-    // Enviar a todos
-    io.emit('chat message', msgData);
-  });
-
-  socket.on('typing', (isTyping) => {
-    socket.broadcast.emit('typing', { user: socket.username, isTyping: isTyping });
   });
 
   socket.on('disconnect', () => {
     if (socket.username) {
-      delete users[socket.id];
-      io.emit('user list', Object.values(users));
+      delete connectedUsers[socket.username];
+      io.emit('user list', Object.keys(connectedUsers));
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-  console.log("Servidor Pro corriendo en puerto" + PORT);
-});
+http.listen(PORT, () => console.log("Servidor Pro corriendo en puerto " + PORT));
 
 
