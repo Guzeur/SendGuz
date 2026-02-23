@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Pro - Super App 3.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-zinc-950 flex items-center justify-center min-h-screen p-4 font-sans text-white">
+
+    <div id="login-screen" class="bg-zinc-900 p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-zinc-800">
+        <div class="text-5xl mb-4">💬</div>
+        <h1 class="text-3xl font-extrabold mb-2">Bienvenido</h1>
+        <p class="text-zinc-400 mb-6 italic">Elige un nombre para comenzar</p>
+        <input id="username-input" type="text" placeholder="Escribe tu nombre..." class="w-full p-3 rounded-xl bg-zinc-800 text-white mb-4 outline-none border-2 border-transparent focus:border-indigo-500">
+        <button onclick="joinChat()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold w-full transition-all">Entrar al Chat</button>
+    </div>
+
+    <div id="chat-screen" class="hidden w-full max-w-5xl bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden flex h-[85vh] border border-zinc-800">
+        
+        <div class="w-1/4 bg-zinc-950 p-6 border-r border-zinc-800 hidden md:flex flex-col">
+            <h2 class="text-indigo-400 font-bold text-lg mb-6 flex items-center gap-2">En línea</h2>
+            <div id="user-list" class="flex flex-col gap-4 overflow-y-auto"></div>
+        </div>
+
+        <div class="flex-1 flex flex-col relative">
+            <div class="bg-zinc-900/50 p-4 flex justify-between items-center border-b border-zinc-800">
+                <h3 class="font-bold text-lg">🚀 Sala Global</h3>
+                <div id="my-name-display" class="bg-zinc-800 px-3 py-1 rounded-full text-xs text-indigo-400"></div>
+            </div>
+            
+            <div id="messages" class="flex-1 p-6 overflow-y-auto flex flex-col gap-4"></div>
+            
+            <div id="typing-indicator" class="px-6 py-1 text-xs text-indigo-400 italic hidden absolute bottom-20 left-0 bg-zinc-900/80 rounded-r-xl"></div>
+
+            <form id="form" class="p-4 bg-zinc-950/50 border-t border-zinc-800 flex gap-3">
+                
+                <input type="file" id="image-upload" accept="image/*" class="hidden">
+                
+                <button type="button" id="img-btn" class="bg-zinc-800 hover:bg-zinc-700 p-3 rounded-2xl transition-all" title="Subir Imagen de tu PC">📷</button>
+                
+                <input id="input" autocomplete="off" placeholder="Escribe un mensaje..." class="flex-1 bg-zinc-800 rounded-2xl px-5 py-3 text-white outline-none focus:ring-2 focus:ring-indigo-600">
+                <button type="submit" class="bg-indigo-600 p-3 rounded-2xl font-bold">Enviar</button>
+            </form>
+        </div>
+    </div>
+
+    <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" preload="auto"></audio>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentUsername = "";
+
+        function joinChat() {
+            const name = document.getElementById('username-input').value.trim();
+            if (name) {
+                currentUsername = name;
+                socket.emit('set username', name);
+                document.getElementById('my-name-display').textContent = "@" + name;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('chat-screen').classList.remove('hidden');
+                document.getElementById('chat-screen').classList.add('flex');
+            }
+        }
+
+        const input = document.getElementById('input');
+        let typingTimer;
+
+        input.addEventListener('input', () => {
+            socket.emit('typing', true);
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => { socket.emit('typing', false); }, 2000);
+        });
+
+        socket.on('typing', (data) => {
+            const indicator = document.getElementById('typing-indicator');
+            if (data.isTyping) {
+                indicator.textContent = data.user + " está escribiendo...";
+                indicator.classList.remove('hidden');
+            } else {
+                indicator.classList.add('hidden');
+            }
+        });
+
+        // --- NUEVA LÓGICA DE IMÁGENES LOCALES ---
+        const imgBtn = document.getElementById('img-btn');
+        const imgUpload = document.getElementById('image-upload');
+
+        // 1. Cuando haces clic en la cámara, simula un clic en el input de archivo
+        imgBtn.addEventListener('click', () => {
+            imgUpload.click(); 
+        });
+
+        // 2. Cuando seleccionas un archivo de tu PC
+        imgUpload.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                // Protegemos para que no suban archivos muy pesados (Límite: 2MB)
+                if (file.size > 2 * 1024 * 1024) {
+                    alert("¡Ups! La imagen es muy pesada. Intenta con una menor a 2MB.");
+                    this.value = ''; // Limpiar
+                    return;
+                }
+
+                // Usamos FileReader para convertir la imagen a texto Base64
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const base64Image = event.target.result;
+                    // Enviamos la imagen convertida
+                    socket.emit('chat message', { text: base64Image, type: 'image' });
+                };
+                reader.readAsDataURL(file); // Inicia la conversión
+                this.value = ''; // Limpiar el input para poder subir la misma foto después si se quiere
+            }
+        });
+        // ----------------------------------------
+
+        document.getElementById('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (input.value.trim()) {
+                socket.emit('chat message', { text: input.value, type: 'text' });
+                input.value = '';
+                socket.emit('typing', false);
+            }
+        });
+
+        socket.on('chat message', (data) => {
+            const isMe = data.user === currentUsername;
+            if (!isMe) document.getElementById('notif-sound').play().catch(()=>{});
+
+            const div = document.createElement('div');
+            div.className = "flex flex-col " + (isMe ? "items-end" : "items-start");
+            
+            let content = "";
+            if (data.type === 'image') {
+                // Muestra la imagen (sea por URL o por Base64 de tu PC)
+                content = "<img src='" + data.text + "' class='rounded-lg mt-2 max-w-[250px] border border-zinc-700 shadow-sm'>";
+            } else {
+                content = "<p class='text-sm'>" + data.text + "</p>";
+            }
+
+            div.innerHTML = "<div class='flex items-center gap-2 mb-1'><span class='text-xs font-bold " + (isMe ? "text-indigo-400" : "text-zinc-400") + "'>" + data.user + "</span><span class='text-[10px] text-zinc-600'>" + data.time + "</span></div><div class='p-3 rounded-2xl max-w-sm shadow-md " + (isMe ? "bg-indigo-600 rounded-tr-none" : "bg-zinc-800 rounded-tl-none") + "'>" + content + "</div>";
+            
+            document.getElementById('messages').appendChild(div);
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        });
+
+        socket.on('user list', (names) => {
+            document.getElementById('user-list').innerHTML = names.map(name => 
+                "<div class='flex items-center gap-3 bg-zinc-900 p-2 rounded-xl border border-zinc-800'><img src='https://api.dicebear.com/7.x/bottts/svg?seed=" + name + "' class='w-8 h-8 rounded-lg bg-zinc-800' /><span class='text-sm font-medium text-zinc-300'>" + name + "</span></div>"
+            ).join('');
+        });
+    </script>
+</body>
+</html>
