@@ -61,15 +61,14 @@
                 <input type="file" id="my-pic-upload" accept="image/*" class="hidden">
             </div>
             
-            <div id="user-list" class="overflow-y-auto flex-1">
-                </div>
+            <div id="user-list" class="overflow-y-auto flex-1"></div>
         </div>
 
         <div class="flex-1 flex flex-col relative bg-[#0a0a0a]">
             <div id="empty-chat" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 z-10 bg-zinc-950">
                 <div class="text-7xl mb-6 opacity-50">🐺</div>
                 <h2 class="text-2xl font-bold text-zinc-300">Bienvenido a SendGuz</h2>
-                <p class="text-sm mt-2">Selecciona un chat en el menú lateral para empezar a mensajear</p>
+                <p class="text-sm mt-2">Selecciona un chat en el menú lateral para empezar</p>
             </div>
 
             <div id="active-chat-header" class="hidden bg-zinc-900/90 backdrop-blur-md p-4 flex justify-between items-center border-b border-zinc-800 z-20 shadow-sm">
@@ -122,7 +121,6 @@
 
         const authMsg = document.getElementById('auth-msg');
 
-        // --- AUTH ---
         function register() {
             const u = document.getElementById('l-user').value.trim();
             const p = document.getElementById('l-phone').value.trim();
@@ -144,21 +142,19 @@
             myUsername = user.username;
             document.getElementById('my-profile-name').textContent = user.username;
             document.getElementById('my-profile-phone').textContent = user.phone;
-            document.getElementById('my-pic').src = user.profilePic || https://api.dicebear.com/7.x/bottts/svg?seed=${user.username};
+            document.getElementById('my-pic').src = user.profilePic || "https://api.dicebear.com/7.x/bottts/svg?seed=" + user.username;
             
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('chat-screen').classList.remove('hidden');
             document.getElementById('chat-screen').classList.add('flex');
         });
 
-        // --- CARGA INICIAL ---
         socket.on('load_initial_data', (data) => {
             allMessages = data.messages;
             data.contacts.forEach(c => contacts[c.username] = c);
             renderUserList();
         });
 
-        // --- AGREGAR CONTACTO ---
         function addContact() {
             const val = prompt("Ingresa el Nombre de Usuario o Teléfono de la persona:");
             if(val) socket.emit('search_contact', val.trim());
@@ -171,7 +167,6 @@
         });
         socket.on('search_error', (msg) => alert(msg));
 
-        // --- FOTO DE PERFIL ---
         document.getElementById('my-pic-upload').addEventListener('change', function() {
             const file = this.files[0];
             if(file) {
@@ -187,12 +182,11 @@
             renderUserList();
         });
 
-        // --- LISTA DE CONTACTOS LATERAL ---
         socket.on('online_status', users => { onlineUsers = users; renderUserList(); });
 
         function getContactPic(username) {
             if(contacts[username] && contacts[username].profilePic) return contacts[username].profilePic;
-            return https://api.dicebear.com/7.x/bottts/svg?seed=${username};
+            return "https://api.dicebear.com/7.x/bottts/svg?seed=" + username;
         }
 
         function renderUserList() {
@@ -216,33 +210,32 @@
                     timeText = lastMsg.time;
                 }
                 
-                if (typingStatus[target]) preview = <span class="text-indigo-400 italic font-medium">escribiendo...</span>;
+                if (typingStatus[target]) preview = "<span class=\"text-indigo-400 italic font-medium\">escribiendo...</span>";
                 
                 const unread = unreadCounts[target] || 0;
                 const activeClass = activeChat === target ? 'active-tab' : '';
                 const isOnline = onlineUsers.includes(target) ? '<div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-zinc-900 shadow-sm"></div>' : '';
 
-                html += `<div onclick="openChat('${target}')" class="chat-tab p-4 border-b border-zinc-800/50 flex items-center justify-between ${activeClass}">
-                            <div class="flex items-center gap-3 overflow-hidden w-3/4">
-                                <div class="relative flex-shrink-0">
-                                    <img src="${getContactPic(target)}" class="w-12 h-12 rounded-full object-cover bg-zinc-800 shadow-sm" />
-                                    ${isOnline}
-                                </div>
-                                <div class="truncate w-full">
-                                    <span class="font-bold text-zinc-100 block truncate">${target}</span>
-                                    <span class="text-sm text-zinc-400 block truncate">${preview}</span>
-                                </div>
-                            </div>
-                            <div class="flex flex-col items-end flex-shrink-0">
-                                <span class="text-[10px] text-zinc-500 font-medium mb-1">${timeText}</span>
-                                ${unread > 0 ? <div class="bg-indigo-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm">${unread}</div> : ""}
-                            </div>
-                        </div>`;
+                html += "<div onclick=\"openChat('" + target + "')\" class=\"chat-tab p-4 border-b border-zinc-800/50 flex items-center justify-between " + activeClass + "\">" +
+                            "<div class=\"flex items-center gap-3 overflow-hidden w-3/4\">" +
+                                "<div class=\"relative flex-shrink-0\">" +
+                                    "<img src=\"" + getContactPic(target) + "\" class=\"w-12 h-12 rounded-full object-cover bg-zinc-800 shadow-sm\" />" +
+                                    isOnline +
+                                "</div>" +
+                                "<div class=\"truncate w-full\">" +
+                                    "<span class=\"font-bold text-zinc-100 block truncate\">" + target + "</span>" +
+                                    "<span class=\"text-sm text-zinc-400 block truncate\">" + preview + "</span>" +
+                                "</div>" +
+                            "</div>" +
+                            "<div class=\"flex flex-col items-end flex-shrink-0\">" +
+                                "<span class=\"text-[10px] text-zinc-500 font-medium mb-1\">" + timeText + "</span>" +
+                                (unread > 0 ? "<div class=\"bg-indigo-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm\">" + unread + "</div>" : "") +
+                            "</div>" +
+                        "</div>";
             });
             list.innerHTML = html;
         }
 
-        // --- ABRIR UN CHAT ---
         function openChat(targetUser) {
             activeChat = targetUser;
             unreadCounts[targetUser] = 0; 
@@ -261,7 +254,6 @@
             renderUserList(); 
         }
 
-        // --- RENDERIZAR MENSAJES Y PALOMITAS ---
         function renderMessages() {
             if(!activeChat) return;
             const box = document.getElementById('messages');
@@ -277,45 +269,42 @@
                 let contentHTML = "";
                 
                 if (msg.deleted) {
-                    contentHTML = <span class="msg-deleted">🚫 Este mensaje fue eliminado</span>;
+                    contentHTML = "<span class=\"msg-deleted\">🚫 Este mensaje fue eliminado</span>";
                 } else {
-                    if (msg.type === 'image') contentHTML = <img src="${msg.text}" class="rounded-xl max-w-[250px] shadow-sm">;
-                    else if (msg.type === 'audio') contentHTML = <audio controls src="${msg.text}" class="h-10 w-64"></audio>;
-                    else contentHTML = <p class="text-[15px] leading-relaxed whitespace-pre-wrap">${msg.text}</p>;
+                    if (msg.type === 'image') contentHTML = "<img src=\"" + msg.text + "\" class=\"rounded-xl max-w-[250px] shadow-sm\">";
+                    else if (msg.type === 'audio') contentHTML = "<audio controls src=\"" + msg.text + "\" class=\"h-10 w-64\"></audio>";
+                    else contentHTML = "<p class=\"text-[15px] leading-relaxed whitespace-pre-wrap\">" + msg.text + "</p>";
                 }
 
                 let ticks = "";
                 if (isMe && !msg.deleted) {
-                    ticks = msg.status === 'read' ? <span class="text-blue-400 text-xs tracking-tighter font-bold">✓✓</span> : <span class="text-zinc-400 text-xs tracking-tighter font-bold">✓✓</span>;
+                    ticks = msg.status === 'read' ? "<span class=\"text-blue-400 text-xs tracking-tighter font-bold\">✓✓</span>" : "<span class=\"text-zinc-400 text-xs tracking-tighter font-bold\">✓✓</span>";
                 }
 
-                let deleteBtn = (isMe && !msg.deleted) ? <button onclick="deleteMessage('${msg._id}')" class="text-xs text-red-400 hover:text-red-300 ml-3 opacity-0 group-hover:opacity-100 transition-opacity font-medium bg-red-400/10 px-2 py-1 rounded-md">Eliminar</button> : '';
+                let deleteBtn = (isMe && !msg.deleted) ? "<button onclick=\"deleteMessage('" + msg._id + "')\" class=\"text-xs text-red-400 hover:text-red-300 ml-3 opacity-0 group-hover:opacity-100 transition-opacity font-medium bg-red-400/10 px-2 py-1 rounded-md\">Eliminar</button>" : "";
 
-                div.innerHTML = `
-                    <div class="group relative max-w-md">
-                        <div class="p-3.5 rounded-2xl shadow-md ${isMe ? "bg-indigo-600 text-white rounded-tr-none" : "bg-zinc-800 text-white rounded-tl-none"}">
-                            ${contentHTML}
-                            <div class="flex items-center justify-end gap-1.5 mt-1.5">
-                                <span class="text-[10px] text-zinc-300 opacity-75 font-medium">${msg.time}</span>
-                                ${ticks}
-                            </div>
-                        </div>
-                        <div class="absolute top-0 ${isMe ? "right-full mr-2" : "left-full ml-2"} h-full flex items-center">
-                            ${deleteBtn}
-                        </div>
-                    </div>`;
+                div.innerHTML = "<div class=\"group relative max-w-md\">" +
+                        "<div class=\"p-3.5 rounded-2xl shadow-md " + (isMe ? "bg-indigo-600 text-white rounded-tr-none" : "bg-zinc-800 text-white rounded-tl-none") + "\">" +
+                            contentHTML +
+                            "<div class=\"flex items-center justify-end gap-1.5 mt-1.5\">" +
+                                "<span class=\"text-[10px] text-zinc-300 opacity-75 font-medium\">" + msg.time + "</span>" +
+                                ticks +
+                            "</div>" +
+                        "</div>" +
+                        "<div class=\"absolute top-0 " + (isMe ? "right-full mr-2" : "left-full ml-2") + " h-full flex items-center\">" +
+                            deleteBtn +
+                        "</div>" +
+                    "</div>";
                 box.appendChild(div);
             });
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- PALOMITAS EN VIVO ---
         socket.on('messages_read', (readerName) => {
             allMessages.forEach(m => { if (m.sender === myUsername && m.receiver === readerName) m.status = 'read'; });
             if (activeChat === readerName) renderMessages();
         });
 
-        // --- BORRAR EN VIVO ---
         function deleteMessage(id) {
             if(confirm("¿Eliminar para todos?")) socket.emit('delete_message', id);
         }
@@ -324,7 +313,6 @@
             if(msg) { msg.deleted = true; renderMessages(); renderUserList(); }
         });
 
-        // --- RECIBIR MENSAJES ---
         socket.on('chat message', (msg) => {
             allMessages.push(msg);
             if (msg.sender !== myUsername) {
@@ -340,7 +328,6 @@
             renderUserList(); 
         });
 
-        // --- ENTRADA DE TEXTO Y MICRÓFONO ---
         const input = document.getElementById('input');
         const sendBtn = document.getElementById('send-btn');
         const micBtn = document.getElementById('mic-btn');
@@ -365,7 +352,6 @@
             }
         });
 
-        // --- AUDIO (NOTAS DE VOZ) ---
         async function toggleAudio() {
             if (!isRecording) {
                 try {
@@ -394,7 +380,6 @@
             }
         }
 
-        // --- IMÁGENES ---
         document.getElementById('image-upload').addEventListener('change', function() {
             const file = this.files[0];
             if (file) {
@@ -405,7 +390,6 @@
             }
         });
 
-        // --- EMOJIS ---
         function toggleEmojis() { document.getElementById('emoji-picker').classList.toggle('hidden'); }
         function addEmoji(e) { 
             input.value += e; 
@@ -413,7 +397,6 @@
             sendBtn.classList.remove('hidden'); micBtn.classList.add('hidden');
         }
 
-        // --- ESCRIBIENDO ---
         socket.on('typing', (data) => {
             typingStatus[data.user] = data.isTyping;
             if(activeChat === data.user) document.getElementById('chat-status').textContent = data.isTyping ? 'escribiendo...' : 'en línea';
@@ -422,4 +405,3 @@
     </script>
 </body>
 </html>
-
