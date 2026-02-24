@@ -88,7 +88,6 @@
             </div>
 
             <div id="active-chat-header" class="hidden bg-zinc-900/95 backdrop-blur-md p-3 md:p-4 flex-shrink-0 border-b border-zinc-800 z-20 flex justify-between items-center shadow-sm">
-                
                 <div class="flex items-center gap-2 md:gap-4 w-full cursor-pointer" onclick="renameContact()" title="Toca para cambiar nombre">
                     <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-2xl p-2 -ml-2 text-zinc-300 hover:text-white flex-shrink-0 w-10">←</button>
                     
@@ -129,6 +128,8 @@
                     <input type="file" id="image-upload" accept="image/*" class="hidden">
                     <button type="button" onclick="document.getElementById('image-upload').click()" class="p-2 text-xl text-zinc-400 hover:text-white">📎</button>
                     
+                    <button type="button" id="view-once-btn" onclick="toggleViewOnce()" class="p-1 px-2 text-lg text-zinc-500 hover:text-white transition-colors" title="Ver foto 1 sola vez">①</button>
+                    
                     <input id="input" autocomplete="off" placeholder="Escribe un mensaje..." class="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none">
                     
                     <button type="button" id="mic-btn" onclick="toggleAudio()" class="w-10 h-10 flex items-center justify-center bg-indigo-600 rounded-full text-lg shadow-md hover:scale-105 transition-transform">🎤</button>
@@ -141,7 +142,6 @@
     <div id="video-call-screen" class="hidden fixed inset-0 z-[200] bg-zinc-950 flex flex-col">
         <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
             <video id="remote-video" class="w-full h-full object-cover" autoplay playsinline></video>
-            
             <video id="local-video" class="absolute bottom-6 right-6 w-32 md:w-48 rounded-xl shadow-2xl border-2 border-zinc-800 bg-zinc-900 object-cover" autoplay playsinline muted></video>
             
             <div id="call-status-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
@@ -168,8 +168,10 @@
         let myUsername = "", activeChat = "";
         let allMessages = [], contacts = {}, unreadCounts = {}, typingStatus = {}, onlineUsers = [];
         let mediaRecorder, audioChunks = [], isRecording = false;
+        
+        // Variable para "Ver una vez"
+        let isViewOnce = false;
 
-        // --- VARIABLES DE WEBRTC (VIDEOLLAMADAS) ---
         let localStream;
         let peerConnection;
         let currentCallUser = "";
@@ -250,6 +252,8 @@
                 let preview = "Toca para chatear";
                 if (lastMsg) {
                     if (lastMsg.deleted) preview = "🚫 Eliminado";
+                    else if (lastMsg.viewOnce && !lastMsg.viewed) preview = '🖼️ Foto (1 vez)';
+                    else if (lastMsg.viewOnce && lastMsg.viewed) preview = '🖼️ Abierto';
                     else if (lastMsg.type === 'image') preview = '📷 Imagen';
                     else if (lastMsg.type === 'audio') preview = '🎤 Nota de voz';
                     else preview = lastMsg.text;
@@ -313,6 +317,33 @@
 
         function closeChatMobile() { activeChat = ""; document.body.classList.remove('mobile-chat-active'); }
 
+        // --- SISTEMA DE "VER UNA VEZ" ---
+        function toggleViewOnce() {
+            isViewOnce = !isViewOnce;
+            const btn = document.getElementById('view-once-btn');
+            if(isViewOnce) {
+                btn.classList.remove('text-zinc-500');
+                btn.classList.add('text-indigo-400', 'font-bold', 'bg-indigo-900/30', 'rounded-full');
+            } else {
+                btn.classList.add('text-zinc-500');
+                btn.classList.remove('text-indigo-400', 'font-bold', 'bg-indigo-900/30', 'rounded-full');
+            }
+        }
+
+        function viewOnceImage(id, src) {
+            openImageModal(src);
+            socket.emit('mark_viewed', id);
+            // Destruir localmente para que no se pueda volver a abrir
+            const m = allMessages.find(x => x._id === id);
+            if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); }
+        }
+
+        socket.on('message_viewed', id => {
+            const m = allMessages.find(x => x._id === id);
+            if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); renderUserList(); }
+        });
+
+        // --- VISOR DE IMÁGENES NORMAL ---
         function openImageModal(src) {
             const modal = document.getElementById('image-modal');
             const img = document.getElementById('modal-img');
@@ -342,7 +373,23 @@
                 if (msg.deleted) {
                     contentHTML = "<span class='msg-deleted'>🚫 Eliminado</span>";
                 } else if (msg.type === 'image') {
-                    contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-xl max-w-[200px] sm:max-w-[250px] mt-1 shadow-sm cursor-pointer hover:opacity-80 transition-opacity'>";
+                    
+                    // LÓGICA DE RENDEREADO PARA "VER UNA VEZ"
+                    if (msg.viewOnce) {
+                        if (msg.viewed) {
+                            contentHTML = "<span class='italic text-zinc-400 flex items-center gap-2'>⭕ Abierto</span>";
+                        } else {
+                            if (isMe) {
+                                contentHTML = "<span class='italic text-zinc-300 flex items-center gap-2'>① Foto (1 vez)</span>";
+                            } else {
+                                contentHTML = "<button onclick=\"viewOnceImage('" + msg._id + "', '" + msg.text + "')\" class='font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-900/40 px-4 py-2 rounded-full flex items-center gap-2 transition-transform hover:scale-105'>① Toca para ver</button>";
+                            }
+                        }
+                    } else {
+                        // Imagen normal
+                        contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-xl max-w-[200px] sm:max-w-[250px] mt-1 shadow-sm cursor-pointer hover:opacity-80 transition-opacity'>";
+                    }
+                    
                 } else if (msg.type === 'audio') {
                     contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60 mt-1'></audio>";
                 } else {
@@ -379,20 +426,13 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- MANEJO DE NOTIFICACIONES MEJORADO ---
         socket.on('chat message', (msg) => {
             allMessages.push(msg);
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
-                
-                // Hacer sonar el "Pop" siempre que llegue un mensaje de otra persona
-                document.getElementById('notif-sound').play().catch(()=>{ console.log("Navegador bloqueó el sonido") });
-
-                if (activeChat !== msg.sender) { 
-                    unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; 
-                } else { 
-                    socket.emit('mark_read', msg.sender); 
-                }
+                document.getElementById('notif-sound').play().catch(()=>{});
+                if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
+                else socket.emit('mark_read', msg.sender);
             }
             renderMessages(); renderUserList(); 
         });
@@ -453,7 +493,11 @@
             if(file) {
                 if(file.size > 15 * 1024 * 1024) return alert("Imagen muy pesada (máximo 15MB).");
                 const reader = new FileReader();
-                reader.onload = e => socket.emit('chat message', { text: e.target.result, type: 'image', receiver: activeChat });
+                reader.onload = e => {
+                    // SE ENVÍA LA VARIABLE isViewOnce
+                    socket.emit('chat message', { text: e.target.result, type: 'image', receiver: activeChat, viewOnce: isViewOnce });
+                    if(isViewOnce) toggleViewOnce(); // Apagar el botón después de enviar
+                };
                 reader.readAsDataURL(file);
                 this.value = ''; 
             }
@@ -474,25 +518,20 @@
         function addEmoji(e) { input.value += e; input.dispatchEvent(new Event('input')); }
         socket.on('typing', d => { typingStatus[d.user] = d.isTyping; if(activeChat === d.user) document.getElementById('chat-status').textContent = d.isTyping ? 'escribiendo...' : 'en línea'; renderUserList(); });
 
-        // ==========================================
-        // SISTEMA DE VIDEOLLAMADAS (WEBRTC)
-        // ==========================================
+        // --- VIDEOLLAMADAS ---
         async function startVideoCall() {
             if(!activeChat) return;
             currentCallUser = activeChat;
             document.getElementById('video-call-screen').classList.remove('hidden');
             document.getElementById('call-status-overlay').classList.remove('hidden');
             document.getElementById('call-status-text').textContent = "Llamando a " + getDisplayName(activeChat) + "...";
-            document.getElementById('accept-call-btn').classList.add('hidden'); // Ocultar botón verde porque yo llamo
+            document.getElementById('accept-call-btn').classList.add('hidden');
 
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
                 document.getElementById('local-video').srcObject = localStream;
                 socket.emit('call_user', { userToCall: activeChat });
-            } catch(e) {
-                alert("Necesitas dar permisos de cámara y micrófono.");
-                endCall();
-            }
+            } catch(e) { alert("Permite cámara/micrófono"); endCall(); }
         }
 
         socket.on('incoming_call', async (data) => {
@@ -500,36 +539,25 @@
             document.getElementById('video-call-screen').classList.remove('hidden');
             document.getElementById('call-status-overlay').classList.remove('hidden');
             document.getElementById('call-status-text').textContent = "Llamada entrante de " + getDisplayName(data.from);
-            document.getElementById('accept-call-btn').classList.remove('hidden'); // Mostrar botón verde para aceptar
-            
-            // Opcional: Reproducir un sonido de "ringtone" aquí si lo tuvieras
+            document.getElementById('accept-call-btn').classList.remove('hidden');
         });
 
         async function acceptCall() {
             document.getElementById('call-status-text').textContent = "Conectando...";
             document.getElementById('accept-call-btn').classList.add('hidden');
-            
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
                 document.getElementById('local-video').srcObject = localStream;
                 socket.emit('accept_call', { to: currentCallUser });
-            } catch(e) {
-                alert("Necesitas dar permisos de cámara y micrófono.");
-                endCall();
-            }
+            } catch(e) { alert("Permite cámara/micrófono"); endCall(); }
         }
 
         socket.on('call_accepted', async (data) => {
-            document.getElementById('call-status-overlay').classList.add('hidden'); // Ocultar cartel
-            
+            document.getElementById('call-status-overlay').classList.add('hidden');
             peerConnection = new RTCPeerConnection(servers);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
-            peerConnection.ontrack = event => { document.getElementById('remote-video').srcObject = event.streams[0]; };
-            peerConnection.onicecandidate = event => {
-                if(event.candidate) socket.emit('webrtc_ice_candidate', { to: currentCallUser, candidate: event.candidate });
-            };
-            
+            localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+            peerConnection.ontrack = e => { document.getElementById('remote-video').srcObject = e.streams[0]; };
+            peerConnection.onicecandidate = e => { if(e.candidate) socket.emit('webrtc_ice_candidate', { to: currentCallUser, candidate: e.candidate }); };
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             socket.emit('webrtc_offer', { to: currentCallUser, sdp: peerConnection.localDescription });
@@ -537,43 +565,31 @@
 
         socket.on('webrtc_offer', async (data) => {
             document.getElementById('call-status-overlay').classList.add('hidden');
-            
             peerConnection = new RTCPeerConnection(servers);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
-            peerConnection.ontrack = event => { document.getElementById('remote-video').srcObject = event.streams[0]; };
-            peerConnection.onicecandidate = event => {
-                if(event.candidate) socket.emit('webrtc_ice_candidate', { to: data.from, candidate: event.candidate });
-            };
-            
+            localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+            peerConnection.ontrack = e => { document.getElementById('remote-video').srcObject = e.streams[0]; };
+            peerConnection.onicecandidate = e => { if(e.candidate) socket.emit('webrtc_ice_candidate', { to: data.from, candidate: e.candidate }); };
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             socket.emit('webrtc_answer', { to: data.from, sdp: peerConnection.localDescription });
         });
 
-        socket.on('webrtc_answer', async (data) => {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        });
-
-        socket.on('webrtc_ice_candidate', async (data) => {
-            if(peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        });
+        socket.on('webrtc_answer', async (data) => { await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp)); });
+        socket.on('webrtc_ice_candidate', async (data) => { if(peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)); });
 
         function endCall() {
             if(peerConnection) peerConnection.close();
-            if(localStream) localStream.getTracks().forEach(track => track.stop());
+            if(localStream) localStream.getTracks().forEach(t => t.stop());
             document.getElementById('video-call-screen').classList.add('hidden');
-            socket.emit('end_call', { to: currentCallUser });
-            currentCallUser = "";
+            socket.emit('end_call', { to: currentCallUser }); currentCallUser = "";
         }
 
         socket.on('call_rejected', () => { endCall(); alert("Llamada rechazada"); });
         socket.on('call_ended', () => {
             if(peerConnection) peerConnection.close();
-            if(localStream) localStream.getTracks().forEach(track => track.stop());
-            document.getElementById('video-call-screen').classList.add('hidden');
-            currentCallUser = "";
+            if(localStream) localStream.getTracks().forEach(t => t.stop());
+            document.getElementById('video-call-screen').classList.add('hidden'); currentCallUser = "";
         });
     </script>
 </body>
