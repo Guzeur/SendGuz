@@ -17,10 +17,12 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// NUEVO: Agregamos viewOnce y viewed al esquema
 const messageSchema = new mongoose.Schema({
   sender: String, receiver: String, text: String, type: String,
   time: String, timestamp: { type: Date, default: Date.now },
-  status: { type: String, default: 'sent' }, deleted: { type: Boolean, default: false }
+  status: { type: String, default: 'sent' }, deleted: { type: Boolean, default: false },
+  viewOnce: { type: Boolean, default: false }, viewed: { type: Boolean, default: false }
 });
 const Message = mongoose.model('Message', messageSchema);
 
@@ -77,7 +79,11 @@ io.on('connection', (socket) => {
 
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow });
+    const newMsg = new Message({ 
+        sender: socket.username, receiver: data.receiver, 
+        text: data.text, type: data.type, time: timeNow, 
+        viewOnce: data.viewOnce || false 
+    });
     const savedMsg = await newMsg.save(); 
     const receiverSocket = connectedUsers[data.receiver];
     if (receiverSocket) io.to(receiverSocket).emit('chat message', savedMsg); 
@@ -95,6 +101,17 @@ io.on('connection', (socket) => {
     if (msg && msg.sender === socket.username) {
         msg.deleted = true; await msg.save();
         io.emit('message_deleted', msgId);
+    }
+  });
+
+  // NUEVO: Destruir imagen de "Ver una sola vez"
+  socket.on('mark_viewed', async (msgId) => {
+    const msg = await Message.findById(msgId);
+    if (msg && !msg.viewed && msg.viewOnce) {
+        msg.viewed = true;
+        msg.text = "destruido"; // Se borra la imagen de la base de datos por seguridad
+        await msg.save();
+        io.emit('message_viewed', msgId);
     }
   });
 
@@ -116,7 +133,6 @@ io.on('connection', (socket) => {
     if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  // --- NUEVO: SISTEMA DE VIDEOLLAMADAS (WEBRTC SIGNALING) ---
   socket.on('call_user', (data) => {
     const receiverSocket = connectedUsers[data.userToCall];
     if(receiverSocket) io.to(receiverSocket).emit('incoming_call', { from: socket.username });
@@ -161,4 +177,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V6 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V7 corriendo en puerto " + PORT));
