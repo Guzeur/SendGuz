@@ -24,9 +24,10 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
+// FANTASMA MEJORADO (Estilo WhatsApp: Vibra, agrupa y notifica siempre)
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.send("self.addEventListener('push', function(e) { const data = e.data.json(); e.waitUntil( self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [200, 100, 200], data: { url: '/' } }) ); }); self.addEventListener('notificationclick', function(e) { e.notification.close(); e.waitUntil(clients.matchAll({ type: 'window' }).then(function(windowClients) { for (var i = 0; i < windowClients.length; i++) { var client = windowClients[i]; if (client.url === '/' && 'focus' in client) return client.focus(); } if (clients.openWindow) return clients.openWindow('/'); })); });");
+  res.send("self.addEventListener('push', function(e) { const data = e.data.json(); e.waitUntil( self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg', renotify: true, data: { url: '/' } }) ); }); self.addEventListener('notificationclick', function(e) { e.notification.close(); e.waitUntil(clients.matchAll({ type: 'window' }).then(function(windowClients) { for (var i = 0; i < windowClients.length; i++) { var client = windowClients[i]; if (client.url === '/' && 'focus' in client) return client.focus(); } if (clients.openWindow) return clients.openWindow('/'); })); });");
 });
 
 const mongoURI = process.env.MONGO_URI;
@@ -101,7 +102,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat message', async (data) => {
-    // --- CORRECCIÓN: Reloj configurado para tu zona horaria (-5 horas / EST) ---
     const timeNow = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
     
     const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow, viewOnce: data.viewOnce || false });
@@ -151,7 +151,11 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username }); });
+  // --- LLAMADAS (AUDIO Y VIDEO) ---
+  socket.on('call_user', (data) => { 
+      const r = connectedUsers[data.userToCall]; 
+      if(r) io.to(r).emit('incoming_call', { from: socket.username, isVideo: data.isVideo }); 
+  });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
   socket.on('end_call', (data) => { const o = connectedUsers[data.to]; if(o) io.to(o).emit('call_ended'); });
@@ -169,4 +173,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V12 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V13 corriendo en puerto " + PORT));
