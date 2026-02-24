@@ -24,18 +24,37 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
+// FANTASMA REPARADO (Usa waitUntil para que el celular no lo mate antes de notificar)
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.send("self.addEventListener('push', function(e) { const data = e.data.json(); self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', vibrate: [200, 100, 200], data: { url: '/' } }); }); self.addEventListener('notificationclick', function(e) { e.notification.close(); e.waitUntil(clients.openWindow(e.notification.data.url)); });");
+  res.send(`
+    self.addEventListener('push', function(e) {
+      const data = e.data.json();
+      e.waitUntil(
+        self.registration.showNotification(data.title, {
+          body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [200, 100, 200], data: { url: '/' }
+        })
+      );
+    });
+    self.addEventListener('notificationclick', function(e) {
+      e.notification.close();
+      e.waitUntil(clients.matchAll({ type: 'window' }).then(windowClients => {
+          for (var i = 0; i < windowClients.length; i++) {
+              var client = windowClients[i];
+              if (client.url === '/' && 'focus' in client) return client.focus();
+          }
+          if (clients.openWindow) return clients.openWindow('/');
+      }));
+    });
+  `);
 });
 
 const mongoURI = process.env.MONGO_URI;
-if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ Base de datos Conectada')).catch(e => console.log(e));
+if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ BD Conectada')).catch(e => console.log(e));
 
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true }, phone: { type: String, unique: true },
-  password: String, profilePic: { type: String, default: '' },
-  pushSubscription: { type: Object, default: null } 
+  password: String, profilePic: { type: String, default: '' }, pushSubscription: { type: Object, default: null } 
 });
 const User = mongoose.model('User', userSchema);
 
@@ -104,8 +123,8 @@ io.on('connection', (socket) => {
     } else {
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
-            let notifText = data.type === 'image' ? 'Imagen' : (data.type === 'audio' ? 'Nota de voz' : data.text);
-            if (data.viewOnce) notifText = 'Foto efímera';
+            let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
+            if (data.viewOnce) notifText = '🖼️ Foto efímera';
             const payload = JSON.stringify({ title: 'SendGuz: ' + socket.username, body: notifText });
             webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
         }
@@ -153,4 +172,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V9 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V10 corriendo en puerto " + PORT));
