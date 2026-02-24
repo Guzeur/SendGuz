@@ -183,27 +183,26 @@
                 }
                 if (typingStatus[target]) preview = "<span class='text-indigo-400 italic'>escribiendo...</span>";
 
-                const isOnline = onlineUsers.includes(target) ? '<div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-zinc-950"></div>' : '';
+                const isOnline = onlineUsers.includes(target) ? "<div class='absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-zinc-950'></div>" : "";
                 const unread = unreadCounts[target] || 0;
                 
-                // Lógica de Usuario Desconocido
                 const displayName = contacts[target].username || "Usuario Desconocido";
                 const pic = contacts[target].profilePic;
-                const avatarHtml = pic ? <img src="${pic}" class="w-12 h-12 rounded-full object-cover"> : <div class="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-xl">👤</div>;
+                const avatarHtml = pic ? "<img src='" + pic + "' class='w-12 h-12 rounded-full object-cover'>" : "<div class='w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-xl'>👤</div>";
 
                 const div = document.createElement('div');
                 div.onclick = () => openChat(target);
-                div.className = chat-tab p-4 border-b border-zinc-900/50 flex items-center justify-between ${activeChat === target ? 'active-tab' : ''};
-                div.innerHTML = `
-                    <div class="flex items-center gap-3 overflow-hidden w-3/4">
-                        <div class="relative flex-shrink-0">${avatarHtml}${isOnline}</div>
-                        <div class="truncate w-full">
-                            <span class="font-bold text-zinc-100 block">${displayName}</span>
-                            <span class="text-xs text-zinc-400 block truncate">${preview}</span>
-                        </div>
-                    </div>
-                    ${unread > 0 ? <div class="bg-indigo-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full">${unread}</div> : ""}
-                `;
+                div.className = "chat-tab p-4 border-b border-zinc-900/50 flex items-center justify-between " + (activeChat === target ? "active-tab" : "");
+                
+                let unreadHtml = unread > 0 ? "<div class='bg-indigo-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full'>" + unread + "</div>" : "";
+                
+                div.innerHTML = "<div class='flex items-center gap-3 overflow-hidden w-3/4'>" +
+                                    "<div class='relative flex-shrink-0'>" + avatarHtml + isOnline + "</div>" +
+                                    "<div class='truncate w-full'>" +
+                                        "<span class='font-bold text-zinc-100 block'>" + displayName + "</span>" +
+                                        "<span class='text-xs text-zinc-400 block truncate'>" + preview + "</span>" +
+                                    "</div>" +
+                                "</div>" + unreadHtml;
                 list.appendChild(div);
             });
         }
@@ -234,12 +233,22 @@
                 const div = document.createElement('div');
                 div.className = "flex flex-col " + (isMe ? "items-end" : "items-start");
                 
-                let contentHTML = msg.deleted ? "<span class='msg-deleted'>🚫 Eliminado</span>" : (msg.type === 'image' ? <img src="${msg.text}" class="rounded-xl max-w-[200px]"> : (msg.type === 'audio' ? <audio controls src="${msg.text}" class="h-8 w-48"></audio> : <p class="text-sm">${msg.text}</p>));
+                let contentHTML = "";
+                if (msg.deleted) {
+                    contentHTML = "<span class='msg-deleted'>🚫 Eliminado</span>";
+                } else if (msg.type === 'image') {
+                    contentHTML = "<img src='" + msg.text + "' class='rounded-xl max-w-[200px]'>";
+                } else if (msg.type === 'audio') {
+                    contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48'></audio>";
+                } else {
+                    contentHTML = "<p class='text-sm'>" + msg.text + "</p>";
+                }
+
                 let ticks = isMe && !msg.deleted ? (msg.status === 'read' ? "<span class='text-blue-400 font-bold text-[10px]'>✓✓</span>" : "<span class='text-zinc-400 font-bold text-[10px]'>✓✓</span>") : "";
                 
                 const bubble = document.createElement('div');
-                bubble.className = msg-bubble max-w-[85%] p-3 rounded-2xl ${isMe ? "bg-indigo-600 rounded-tr-none" : "bg-zinc-800 rounded-tl-none"};
-                bubble.innerHTML = ${contentHTML}<div class='flex justify-end gap-1 mt-1'><span class='text-[9px] opacity-70'>${msg.time}</span>${ticks}</div>;
+                bubble.className = "msg-bubble max-w-[85%] p-3 rounded-2xl " + (isMe ? "bg-indigo-600 rounded-tr-none" : "bg-zinc-800 rounded-tl-none");
+                bubble.innerHTML = contentHTML + "<div class='flex justify-end gap-1 mt-1'><span class='text-[9px] opacity-70'>" + msg.time + "</span>" + ticks + "</div>";
                 
                 // Lógica de Presión Larga para Borrar
                 if (isMe && !msg.deleted) {
@@ -262,7 +271,6 @@
         socket.on('chat message', (msg) => {
             allMessages.push(msg);
             if (msg.sender !== myUsername) {
-                // Si el remitente no está en mis contactos, agregarlo como desconocido
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: "Usuario Desconocido", profilePic: "" }; }
                 if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; document.getElementById('notif-sound').play().catch(()=>{}); }
                 else socket.emit('mark_read', msg.sender);
