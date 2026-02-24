@@ -24,10 +24,44 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// FANTASMA MEJORADO (Estilo WhatsApp: Vibra, agrupa y notifica siempre)
+// FANTASMA BLINDADO Y ANTI-CACHÉ
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.send("self.addEventListener('push', function(e) { const data = e.data.json(); e.waitUntil( self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg', renotify: true, data: { url: '/' } }) ); }); self.addEventListener('notificationclick', function(e) { e.notification.close(); e.waitUntil(clients.matchAll({ type: 'window' }).then(function(windowClients) { for (var i = 0; i < windowClients.length; i++) { var client = windowClients[i]; if (client.url === '/' && 'focus' in client) return client.focus(); } if (clients.openWindow) return clients.openWindow('/'); })); });");
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); // ESTO OBLIGA A APPLE A ACTUALIZAR
+  res.send(`
+    self.addEventListener('push', function(e) {
+      try {
+        const data = e.data.json();
+        e.waitUntil(
+          self.registration.showNotification(data.title, {
+            body: data.body,
+            icon: '/icon.svg',
+            badge: '/icon.svg',
+            vibrate: [300, 100, 400],
+            tag: 'sendguz-msg',
+            renotify: true,
+            data: { url: '/' }
+          })
+        );
+      } catch(err) { console.error("Error en SW Push", err); }
+    });
+
+    self.addEventListener('notificationclick', function(e) {
+      e.notification.close();
+      e.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
+          if (windowClients.length > 0) {
+            let client = windowClients[0];
+            for (let i = 0; i < windowClients.length; i++) {
+              if (windowClients[i].focused) client = windowClients[i];
+            }
+            return client.focus();
+          }
+          return clients.openWindow('/');
+        })
+      );
+    });
+  `);
 });
 
 const mongoURI = process.env.MONGO_URI;
@@ -109,16 +143,21 @@ io.on('connection', (socket) => {
     socket.emit('chat message', savedMsg); 
 
     const receiverSocket = connectedUsers[data.receiver];
-    if (receiverSocket) {
+    
+    // 1. Si está conectado y activo, mandamos el mensaje al chat en vivo
+    if (receiverSocket && userStatus[data.receiver] === 'active') {
         io.to(receiverSocket).emit('chat message', savedMsg); 
     } 
     
+    // 2. Si NO está conectado, O la app está minimizada (background), lanzamos la Notificación Push
     if (!receiverSocket || userStatus[data.receiver] !== 'active') {
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
             let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
             if (data.viewOnce) notifText = '🖼️ Foto efímera';
             const payload = JSON.stringify({ title: 'SendGuz: ' + socket.username, body: notifText });
+            
+            // Disparamos la notificación de sistema
             webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
         }
     }
@@ -151,11 +190,7 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  // --- LLAMADAS (AUDIO Y VIDEO) ---
-  socket.on('call_user', (data) => { 
-      const r = connectedUsers[data.userToCall]; 
-      if(r) io.to(r).emit('incoming_call', { from: socket.username, isVideo: data.isVideo }); 
-  });
+  socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username, isVideo: data.isVideo }); });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
   socket.on('end_call', (data) => { const o = connectedUsers[data.to]; if(o) io.to(o).emit('call_ended'); });
@@ -166,11 +201,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (socket.username) { 
         delete connectedUsers[socket.username]; 
-        delete userStatus[socket.username];
+        // TRUCO: Le decimos a la base de datos que se desconectó, para que sí o sí mande Push
+        userStatus[socket.username] = 'background';
         io.emit('online_status', Object.keys(connectedUsers)); 
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V13 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V14 corriendo en puerto " + PORT));
