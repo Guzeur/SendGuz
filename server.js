@@ -1,254 +1,138 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Pro - Cuentas y Privados</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1a1a1a; }
-        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
-        .chat-tab { cursor: pointer; transition: all 0.2s; }
-        .chat-tab:hover { background: #27272a; }
-        .active-tab { background: #3f3f46; border-left: 4px solid #4f46e5; }
-    </style>
-</head>
-<body class="bg-zinc-950 flex items-center justify-center min-h-screen p-4 font-sans text-white">
+const express = require('express');
+const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http, { maxHttpBufferSize: 20 * 1024 * 1024 }); // Subido a 20MB para audios
+const mongoose = require('mongoose');
 
-    <div id="login-screen" class="bg-zinc-900 p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-zinc-800">
-        <div class="text-5xl mb-4">💬</div>
-        <h1 class="text-2xl font-extrabold mb-6">Identifícate</h1>
-        
-        <input id="user-input" type="text" placeholder="Usuario" class="w-full p-3 rounded-xl bg-zinc-800 text-white mb-3 outline-none focus:ring-2 focus:ring-indigo-500">
-        <input id="pass-input" type="password" placeholder="Contraseña" class="w-full p-3 rounded-xl bg-zinc-800 text-white mb-4 outline-none focus:ring-2 focus:ring-indigo-500">
-        
-        <div class="flex gap-2">
-            <button onclick="login()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-bold transition-all">Entrar</button>
-            <button onclick="register()" class="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white py-3 rounded-xl font-bold transition-all">Registrar</button>
-        </div>
-        <p id="auth-msg" class="text-red-400 text-sm mt-4 hidden"></p>
-    </div>
+app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
-    <div id="chat-screen" class="hidden w-full max-w-6xl bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden flex h-[85vh] border border-zinc-800">
-        
-        <div class="w-1/4 bg-zinc-950 border-r border-zinc-800 flex flex-col">
-            <div class="p-4 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
-                <span class="font-bold text-indigo-400" id="my-profile"></span>
-            </div>
-            <div id="user-list" class="overflow-y-auto flex-1"></div>
-        </div>
+// --- CONEXIÓN A BASE DE DATOS ---
+const mongoURI = process.env.MONGO_URI;
+if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ BD Conectada')).catch(e => console.log(e));
 
-        <div class="flex-1 flex flex-col relative">
-            <div class="bg-zinc-900/50 p-4 flex justify-between items-center border-b border-zinc-800">
-                <h3 id="chat-title" class="font-bold text-lg">🌍 Sala Global</h3>
-            </div>
-            
-            <div id="messages" class="flex-1 p-6 overflow-y-auto flex flex-col gap-4"></div>
+// --- 1. ESQUEMA DE USUARIOS (Ahora con Teléfono y Foto) ---
+const userSchema = new mongoose.Schema({
+  username: { type: String, unique: true },
+  phone: { type: String, unique: true },
+  password: String,
+  profilePic: { type: String, default: '' } // Base64 de la imagen
+});
+const User = mongoose.model('User', userSchema);
 
-            <form id="form" class="p-4 bg-zinc-950/50 border-t border-zinc-800 flex gap-3">
-                <input type="file" id="image-upload" accept="image/*" class="hidden">
-                <button type="button" id="img-btn" class="bg-zinc-800 p-3 rounded-2xl">📷</button>
-                <input id="input" autocomplete="off" placeholder="Escribe un mensaje..." class="flex-1 bg-zinc-800 rounded-2xl px-5 py-3 text-white outline-none focus:ring-2 focus:ring-indigo-600">
-                <button type="submit" class="bg-indigo-600 px-6 rounded-2xl font-bold">Enviar</button>
-            </form>
-        </div>
-    </div>
+// --- 2. ESQUEMA DE MENSAJES (Ahora con Estados y Borrado) ---
+const messageSchema = new mongoose.Schema({
+  sender: String,
+  receiver: String,
+  text: String, // Texto, o Base64 de Imagen/Audio
+  type: String, // 'text', 'image', 'audio'
+  time: String,
+  timestamp: { type: Date, default: Date.now },
+  status: { type: String, default: 'sent' }, // 'sent' (✓✓ gris), 'read' (✓✓ azul)
+  deleted: { type: Boolean, default: false } // Para borrar mensajes
+});
+const Message = mongoose.model('Message', messageSchema);
 
-    <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" preload="auto"></audio>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let myUsername = "";
-        let activeChat = "Global";
-        let allMessages = [];
-        let onlineUsers = [];
-        let unreadCounts = {}; // Memoria para los mensajes sin leer
+let connectedUsers = {}; // Para saber quién está online
 
-        const authMsg = document.getElementById('auth-msg');
+io.on('connection', (socket) => {
+  
+  // --- REGISTRO CON TELÉFONO ---
+  socket.on('register', async (data) => {
+    if (!mongoURI) return socket.emit('auth_error', 'BD no conectada');
+    try {
+      const existU = await User.findOne({ username: data.username });
+      const existP = await User.findOne({ phone: data.phone });
+      if (existU || existP) return socket.emit('auth_error', 'Usuario o Teléfono ya existe.');
+      
+      const newUser = new User({ username: data.username, phone: data.phone, password: data.password });
+      await newUser.save();
+      socket.emit('register_success', '¡Cuenta creada con éxito!');
+    } catch(e) { socket.emit('auth_error', 'Error en registro.'); }
+  });
 
-        function register() {
-            const u = document.getElementById('user-input').value.trim();
-            const p = document.getElementById('pass-input').value.trim();
-            if(u && p) socket.emit('register', {username: u, password: p});
-        }
+  // --- LOGIN Y CARGA DE CHATS PRIVADOS ---
+  socket.on('login', async (data) => {
+    const user = await User.findOne({ username: data.username, password: data.password });
+    if (!user) return socket.emit('auth_error', 'Datos incorrectos.');
+    
+    socket.username = user.username;
+    connectedUsers[user.username] = socket.id;
+    
+    // Buscar todos los mensajes donde participo
+    const myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] }).sort({ timestamp: 1 });
+    
+    // Extraer con quién he hablado para armar la lista de contactos
+    const contactsSet = new Set();
+    myMsgs.forEach(m => {
+        if (m.sender !== user.username) contactsSet.add(m.sender);
+        if (m.receiver !== user.username) contactsSet.add(m.receiver);
+    });
+    
+    const contactsInfo = await User.find({ username: { $in: Array.from(contactsSet) } }, 'username profilePic phone');
+    
+    socket.emit('login_success', { username: user.username, profilePic: user.profilePic, phone: user.phone });
+    socket.emit('load_initial_data', { messages: myMsgs, contacts: contactsInfo });
+    io.emit('online_status', Object.keys(connectedUsers));
+  });
 
-        function login() {
-            const u = document.getElementById('user-input').value.trim();
-            const p = document.getElementById('pass-input').value.trim();
-            if(u && p) socket.emit('login', {username: u, password: p});
-        }
+  // --- BUSCAR NUEVO CONTACTO ---
+  socket.on('search_contact', async (query) => {
+    if (query === socket.username) return socket.emit('search_error', 'No puedes agregarte a ti mismo.');
+    const user = await User.findOne({ $or: [{ username: query }, { phone: query }] }, 'username profilePic phone');
+    if (user) socket.emit('contact_found', user);
+    else socket.emit('search_error', 'Usuario o teléfono no encontrado.');
+  });
 
-        socket.on('auth_error', (msg) => {
-            authMsg.textContent = msg;
-            authMsg.className = 'text-red-400 text-sm mt-4';
-        });
+  // --- ACTUALIZAR FOTO DE PERFIL ---
+  socket.on('update_profile_pic', async (base64) => {
+    await User.updateOne({ username: socket.username }, { profilePic: base64 });
+    socket.emit('profile_pic_updated', base64);
+    io.emit('contact_pic_updated', { username: socket.username, profilePic: base64 }); // Avisar a los demás
+  });
 
-        socket.on('register_success', (msg) => {
-            authMsg.textContent = msg;
-            authMsg.className = 'text-green-400 text-sm mt-4';
-        });
+  // --- ENVIAR MENSAJES ---
+  socket.on('chat message', async (data) => {
+    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow });
+    const savedMsg = await newMsg.save(); // Guardar para obtener el ID real
+    
+    const receiverSocket = connectedUsers[data.receiver];
+    if (receiverSocket) io.to(receiverSocket).emit('chat message', savedMsg); // Enviar al amigo
+    socket.emit('chat message', savedMsg); // Mostrarme a mí
+  });
 
-        socket.on('login_success', (username) => {
-            myUsername = username;
-            document.getElementById('my-profile').textContent = "@" + username;
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('chat-screen').classList.remove('hidden');
-            document.getElementById('chat-screen').classList.add('flex');
-        });
+  // --- RECIBOS DE LECTURA (PALOMITAS AZULES) ---
+  socket.on('mark_read', async (senderName) => {
+    // Actualizar en BD que ya leí los mensajes que me envió él
+    await Message.updateMany({ sender: senderName, receiver: socket.username, status: 'sent' }, { status: 'read' });
+    // Avisarle a su computadora en vivo
+    const senderSocket = connectedUsers[senderName];
+    if (senderSocket) io.to(senderSocket).emit('messages_read', socket.username);
+  });
 
-        // --- MAGIA: GENERAR LISTA CON VISTAS PREVIAS Y NOTIFICACIONES ---
-        function renderUserList() {
-            const list = document.getElementById('user-list');
-            let html = "";
-            
-            // Unir la Sala Global con los usuarios conectados (excluyéndome a mí)
-            const chats = ['Global', ...onlineUsers.filter(n => n !== myUsername)];
-            
-            chats.forEach(target => {
-                // 1. Filtrar los mensajes de este chat específico
-                const chatMsgs = allMessages.filter(m => {
-                    if (target === 'Global') return m.receiver === 'Global';
-                    return (m.sender === target && m.receiver === myUsername) || 
-                           (m.sender === myUsername && m.receiver === target);
-                });
-                
-                // 2. Obtener el último mensaje para la vista previa
-                const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
-                
-                let preview = "Sin mensajes...";
-                let timeText = "";
-                if (lastMsg) {
-                    preview = lastMsg.type === 'image' ? '📷 Imagen' : lastMsg.text;
-                    if (preview.length > 20) preview = preview.substring(0, 20) + '...';
-                    if (lastMsg.sender === myUsername) preview = "Tú: " + preview;
-                    timeText = lastMsg.time || "";
-                }
-                
-                // 3. Obtener notificaciones y diseño
-                const unread = unreadCounts[target] || 0;
-                const activeClass = activeChat === target ? 'active-tab' : '';
-                const avatar = target === 'Global' 
-                    ? "<div class='text-2xl w-10 h-10 flex items-center justify-center bg-zinc-800 rounded-full flex-shrink-0'>🌍</div>" 
-                    : "<img src='https://api.dicebear.com/7.x/bottts/svg?seed=" + target + "' class='w-10 h-10 rounded-full bg-zinc-800 flex-shrink-0' />";
-                
-                const displayName = target === 'Global' ? 'Sala Global' : target;
+  // --- BORRAR MENSAJES ---
+  socket.on('delete_message', async (msgId) => {
+    const msg = await Message.findById(msgId);
+    if (msg && msg.sender === socket.username) {
+        msg.deleted = true;
+        await msg.save();
+        io.emit('message_deleted', msgId); // Avisar a ambos para que se borre de la pantalla
+    }
+  });
 
-                // 4. Construir el HTML de la pestaña
-                html += "<div onclick=\"openChat('" + target + "')\" class=\"chat-tab p-4 border-b border-zinc-800 flex items-center justify-between " + activeClass + "\">" +
-                            "<div class=\"flex items-center gap-3 overflow-hidden w-3/4\">" +
-                                avatar +
-                                "<div class=\"truncate\">" +
-                                    "<span class=\"font-medium text-zinc-300 block truncate\">" + displayName + "</span>" +
-                                    "<span class=\"text-xs text-zinc-500 block truncate\">" + preview + "</span>" +
-                                "</div>" +
-                            "</div>" +
-                            "<div class=\"flex flex-col items-end flex-shrink-0\">" +
-                                "<span class=\"text-[10px] text-zinc-600 mb-1\">" + timeText + "</span>" +
-                                (unread > 0 ? "<div class=\"bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full\">" + unread + "</div>" : "") +
-                            "</div>" +
-                        "</div>";
-            });
-            list.innerHTML = html;
-        }
+  // --- ESCRIBIENDO ---
+  socket.on('typing', (data) => {
+    const receiverSocket = connectedUsers[data.receiver];
+    if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
+  });
 
-        socket.on('user list', (names) => {
-            onlineUsers = names;
-            renderUserList();
-        });
+  socket.on('disconnect', () => {
+    if (socket.username) {
+      delete connectedUsers[socket.username];
+      io.emit('online_status', Object.keys(connectedUsers));
+    }
+  });
+});
 
-        function openChat(targetUser) {
-            activeChat = targetUser;
-            unreadCounts[targetUser] = 0; // Poner notificaciones en cero al abrir
-            document.getElementById('chat-title').textContent = targetUser === 'Global' ? '🌍 Sala Global' : '🔒 Chat Privado con ' + targetUser;
-            renderMessages();
-            renderUserList(); // Actualizar lista para borrar la bolita roja
-        }
-
-        function renderMessages() {
-            const box = document.getElementById('messages');
-            box.innerHTML = '';
-            
-            allMessages.forEach(msg => {
-                let shouldShow = false;
-                if (activeChat === 'Global' && msg.receiver === 'Global') shouldShow = true;
-                if (activeChat !== 'Global') {
-                    if ((msg.sender === myUsername && msg.receiver === activeChat) || 
-                        (msg.sender === activeChat && msg.receiver === myUsername)) {
-                        shouldShow = true;
-                    }
-                }
-
-                if(shouldShow) {
-                    const isMe = msg.sender === myUsername;
-                    const div = document.createElement('div');
-                    div.className = "flex flex-col " + (isMe ? "items-end" : "items-start");
-                    
-                    let content = msg.type === 'image' 
-                        ? "<img src='" + msg.text + "' class='rounded-lg mt-2 max-w-[250px] shadow-sm'>" 
-                        : "<p class='text-sm'>" + msg.text + "</p>";
-
-                    div.innerHTML = "<div class='flex items-center gap-2 mb-1'>" +
-                            "<span class='text-xs font-bold " + (isMe ? "text-indigo-400" : "text-zinc-400") + "'>" + msg.sender + "</span>" +
-                            "<span class='text-[10px] text-zinc-600'>" + msg.time + "</span>" +
-                        "</div>" +
-                        "<div class='p-3 rounded-2xl max-w-sm shadow-md " + (isMe ? "bg-indigo-600 rounded-tr-none" : "bg-zinc-800 rounded-tl-none") + "'>" +
-                            content +
-                        "</div>";
-                    box.appendChild(div);
-                }
-            });
-            box.scrollTop = box.scrollHeight;
-        }
-
-        socket.on('load_history', (msgs) => {
-            allMessages = msgs;
-            renderMessages();
-            renderUserList(); // Cargar vistas previas iniciales
-        });
-
-        socket.on('chat message', (msg) => {
-            allMessages.push(msg);
-            
-            // Si el mensaje no lo envié yo, verificar si sumar notificación
-            if (msg.sender !== myUsername) {
-                let chatName = msg.receiver === 'Global' ? 'Global' : msg.sender;
-                
-                // Si el chat donde llegó el mensaje NO es el que tengo abierto actualmente...
-                if (activeChat !== chatName) {
-                    unreadCounts[chatName] = (unreadCounts[chatName] || 0) + 1; // Sumar 1 a la bolita
-                    document.getElementById('notif-sound').play().catch(()=>{});
-                }
-            }
-            
-            renderMessages();
-            renderUserList(); // Actualizar bolitas y vistas previas en tiempo real
-        });
-
-        document.getElementById('form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const input = document.getElementById('input');
-            if (input.value.trim()) {
-                socket.emit('chat message', { text: input.value, type: 'text', receiver: activeChat });
-                input.value = '';
-            }
-        });
-
-        const imgUpload = document.getElementById('image-upload');
-        document.getElementById('img-btn').addEventListener('click', () => imgUpload.click());
-        imgUpload.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                if (file.size > 10 * 1024 * 1024) return alert("Imagen muy pesada.");
-                const reader = new FileReader();
-                reader.onload = (e) => socket.emit('chat message', { text: e.target.result, type: 'image', receiver: activeChat });
-                reader.readAsDataURL(file);
-                this.value = '';
-            }
-        });
-    </script>
-</body>
-</html>
-
-
-
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => console.log("Servidor V5 corriendo en puerto " + PORT));
