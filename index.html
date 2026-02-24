@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SendGuz - Chat Privado</title>
+    <title>SendGuz</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4f46e5">
     <link rel="apple-touch-icon" href="/icon.svg">
@@ -86,7 +86,7 @@
         <div id="chat-area" class="flex-1 flex flex-col relative chat-bg h-full">
             <div id="empty-chat" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 z-10 bg-zinc-950">
                 <div class="text-7xl mb-6 opacity-30 text-white">🐺</div>
-                <h2 class="text-xl font-bold text-zinc-400">SendGuz Privado</h2>
+                <h2 class="text-xl font-bold text-zinc-400">SendGuz</h2>
             </div>
 
             <div id="active-chat-header" class="hidden bg-zinc-900/95 backdrop-blur-md p-3 md:p-4 flex-shrink-0 border-b border-zinc-800 z-20 flex justify-between items-center shadow-sm">
@@ -130,11 +130,9 @@
 
     <div id="video-call-screen" class="hidden fixed inset-0 z-[200] bg-zinc-950 flex flex-col">
         <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-            
             <div id="audio-call-avatar" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-0">
                 <div class="w-32 h-32 rounded-full bg-zinc-800 flex items-center justify-center text-6xl shadow-2xl mb-4 border-4 border-zinc-700">👤</div>
             </div>
-
             <video id="remote-video" class="w-full h-full object-cover z-10" autoplay playsinline></video>
             <video id="local-video" class="absolute bottom-6 right-6 w-28 md:w-48 rounded-xl shadow-2xl border-2 border-zinc-800 bg-zinc-900 object-cover z-20" autoplay playsinline muted></video>
             
@@ -160,7 +158,7 @@
         let mediaRecorder, audioChunks = [], isRecording = false; let isViewOnce = false;
         
         let localStream, peerConnection, currentCallUser = "";
-        let currentCallIsVideo = true; // Para saber si es llamada de voz o video
+        let currentCallIsVideo = true; 
 
         const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         const publicVapidKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB22-xO3U-2XMDn-R_cewgKMc';
@@ -203,8 +201,26 @@
 
         function logout() { if(confirm("¿Cerrar sesión?")) { localStorage.removeItem('sg_user'); localStorage.removeItem('sg_pass'); location.reload(); } }
 
-        function login() { const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && pw) { localStorage.setItem('sg_temp_pass', pw); socket.emit('login', {username: u, password: pw}); } }
-        function register() { const u = document.getElementById('l-user').value.trim(); const p = document.getElementById('l-phone').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && p && pw) socket.emit('register', {username: u, phone: p, password: pw}); }
+        // --- MAGIA IOS: PEDIR PERMISO DE NOTIFICACIÓN AL HACER CLIC ---
+        function requestPushPermission() {
+            if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                Notification.requestPermission().then(function(permission) {
+                    if (permission === 'granted') setupPushNotifications();
+                });
+            }
+        }
+
+        function login() { 
+            requestPushPermission(); // Forzar petición al sistema
+            const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); 
+            if(u && pw) { localStorage.setItem('sg_temp_pass', pw); socket.emit('login', {username: u, password: pw}); } 
+        }
+        
+        function register() { 
+            requestPushPermission(); 
+            const u = document.getElementById('l-user').value.trim(); const p = document.getElementById('l-phone').value.trim(); const pw = document.getElementById('l-pass').value.trim(); 
+            if(u && p && pw) socket.emit('register', {username: u, phone: p, password: pw}); 
+        }
 
         socket.on('auth_error', function(msg) { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-red-400 text-sm mt-4 block'; a.classList.remove('hidden'); });
         socket.on('register_success', function(msg) { const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-green-400 text-sm mt-4 block'; a.classList.remove('hidden'); });
@@ -223,7 +239,7 @@
         function urlBase64ToUint8Array(base64String) { const padding = '='.repeat((4 - base64String.length % 4) % 4); const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/'); const rawData = window.atob(base64); const outputArray = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); } return outputArray; }
 
         async function setupPushNotifications() {
-            if ('serviceWorker' in navigator && 'PushManager' in window) {
+            if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
                 try {
                     const register = await navigator.serviceWorker.register('/sw.js');
                     const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) });
@@ -242,7 +258,7 @@
 
         function renameContact() { if(!activeChat) return; const currentName = getDisplayName(activeChat); const newAlias = prompt("Guardar contacto como:", currentName); if(newAlias !== null && newAlias.trim() !== "") { aliases[activeChat] = newAlias.trim(); localStorage.setItem('sg_aliases', JSON.stringify(aliases)); document.getElementById('chat-title').textContent = aliases[activeChat]; renderUserList(); } }
         function updateAvatarDisplay(imgId, placeholderId, picData) { const img = document.getElementById(imgId); const ph = document.getElementById(placeholderId); if(picData && picData !== "") { img.src = picData; img.classList.remove('hidden'); ph.classList.add('hidden'); } else { img.classList.add('hidden'); ph.classList.remove('hidden'); } }
-        function addContact() { const val = prompt("Nombre de usuario o Teléfono:"); if(val) socket.emit('search_contact', val.trim()); }
+        function addContact() { requestPushPermission(); const val = prompt("Nombre de usuario o Teléfono:"); if(val) socket.emit('search_contact', val.trim()); }
         socket.on('contact_found', function(user) { contacts[user.username] = user; openChat(user.username); });
 
         function renderUserList() {
@@ -269,7 +285,7 @@
             });
         }
 
-        function openChat(targetUser) { activeChat = targetUser; unreadCounts[targetUser] = 0; document.body.classList.add('mobile-chat-active'); document.getElementById('empty-chat').classList.add('hidden'); document.getElementById('active-chat-header').classList.remove('hidden'); document.getElementById('form').classList.remove('hidden'); document.getElementById('chat-title').textContent = getDisplayName(targetUser); updateAvatarDisplay('active-pic', 'active-pic-placeholder', contacts[targetUser].profilePic); socket.emit('mark_read', targetUser); renderMessages(); renderUserList(); }
+        function openChat(targetUser) { requestPushPermission(); activeChat = targetUser; unreadCounts[targetUser] = 0; document.body.classList.add('mobile-chat-active'); document.getElementById('empty-chat').classList.add('hidden'); document.getElementById('active-chat-header').classList.remove('hidden'); document.getElementById('form').classList.remove('hidden'); document.getElementById('chat-title').textContent = getDisplayName(targetUser); updateAvatarDisplay('active-pic', 'active-pic-placeholder', contacts[targetUser].profilePic); socket.emit('mark_read', targetUser); renderMessages(); renderUserList(); }
         function closeChatMobile() { activeChat = ""; document.body.classList.remove('mobile-chat-active'); renderUserList(); }
         function toggleViewOnce() { isViewOnce = !isViewOnce; const btn = document.getElementById('view-once-btn'); if(isViewOnce) { btn.classList.remove('text-zinc-500'); btn.classList.add('text-indigo-400', 'font-bold', 'bg-indigo-900/30', 'rounded-full'); } else { btn.classList.add('text-zinc-500'); btn.classList.remove('text-indigo-400', 'font-bold', 'bg-indigo-900/30', 'rounded-full'); } }
         function viewOnceImage(id, src) { openImageModal(src); socket.emit('mark_viewed', id); const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); } }
@@ -295,8 +311,24 @@
             typingStatus[msg.sender] = false;
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
-                document.getElementById('notif-sound').play().catch(function(){});
-                if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else socket.emit('mark_read', msg.sender);
+                
+                // --- SOLUCIÓN PARA EL REPRODUCTOR DE MÚSICA DE IPHONE ---
+                if (!document.hidden) {
+                    // Solo sonará el Pop si tienes la app ABIERTA y viéndola
+                    document.getElementById('notif-sound').play().catch(function(){});
+                    
+                    if (activeChat !== msg.sender) { 
+                        unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; 
+                    } else {
+                        socket.emit('mark_read', msg.sender);
+                    }
+                } else {
+                    // Si está en segundo plano, suma a la bolita pero NO TOCA EL AUDIO HTML5.
+                    // El "Fantasma" del servidor se encarga de mostrar la notificación nativa con sonido.
+                    if (activeChat !== msg.sender) { 
+                        unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; 
+                    }
+                }
             }
             renderMessages(); renderUserList(); 
         });
