@@ -3,21 +3,49 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, { maxHttpBufferSize: 20 * 1024 * 1024 });
 const mongoose = require('mongoose');
+const webpush = require('web-push');
+
+// --- LLAVES DE SEGURIDAD (VAPID) PARA GOOGLE Y APPLE ---
+const publicVapidKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB22-xO3U-2XMDn-R_cewgKMc';
+const privateVapidKey = 'HqX-TndhI0Pnt6O-4R1R_xM7rD2X1wE90-hK8-21TGE';
+webpush.setVapidDetails('mailto:soporte@sendguz.com', publicVapidKey, privateVapidKey);
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
+
+// --- TRUCO MAESTRO: ARCHIVOS VIRTUALES PARA CONVERTIR EN APP (PWA) ---
+app.get('/manifest.json', (req, res) => {
+  res.json({
+    name: "SendGuz", short_name: "SendGuz", start_url: "/", display: "standalone",
+    background_color: "#09090b", theme_color: "#4f46e5",
+    icons: [{ src: "https://api.dicebear.com/7.x/bottts/svg?seed=Wolf", sizes: "192x192", type: "image/svg+xml" }]
+  });
+});
+
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(`
+    self.addEventListener('push', function(e) {
+      const data = e.data.json();
+      self.registration.showNotification(data.title, {
+        body: data.body, icon: 'https://api.dicebear.com/7.x/bottts/svg?seed=Wolf', vibrate: [200, 100, 200], data: { url: '/' }
+      });
+    });
+    self.addEventListener('notificationclick', function(e) {
+      e.notification.close(); e.waitUntil(clients.openWindow(e.notification.data.url));
+    });
+  `);
+});
 
 const mongoURI = process.env.MONGO_URI;
 if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ BD Conectada')).catch(e => console.log(e));
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, unique: true },
-  phone: { type: String, unique: true },
-  password: String,
-  profilePic: { type: String, default: '' }
+  username: { type: String, unique: true }, phone: { type: String, unique: true },
+  password: String, profilePic: { type: String, default: '' },
+  pushSubscription: { type: Object, default: null } // NUEVO: Memoria del Fantasma
 });
 const User = mongoose.model('User', userSchema);
 
-// NUEVO: Agregamos viewOnce y viewed al esquema
 const messageSchema = new mongoose.Schema({
   sender: String, receiver: String, text: String, type: String,
   time: String, timestamp: { type: Date, default: Date.now },
@@ -30,16 +58,19 @@ let connectedUsers = {};
 
 io.on('connection', (socket) => {
   
+  // Guardar la suscripción del fantasma en la BD
+  socket.on('save_subscription', async (sub) => {
+    if(socket.username) await User.updateOne({ username: socket.username }, { pushSubscription: sub });
+  });
+
   socket.on('register', async (data) => {
     if (!mongoURI) return socket.emit('auth_error', 'BD no conectada');
     try {
       const existU = await User.findOne({ username: data.username });
       const existP = await User.findOne({ phone: data.phone });
       if (existU || existP) return socket.emit('auth_error', 'Usuario o Teléfono ya existe.');
-      
       const newUser = new User({ username: data.username, phone: data.phone, password: data.password });
-      await newUser.save();
-      socket.emit('register_success', '¡Cuenta creada con éxito!');
+      await newUser.save(); socket.emit('register_success', '¡Cuenta creada con éxito!');
     } catch(e) { socket.emit('auth_error', 'Error en registro.'); }
   });
 
@@ -47,18 +78,12 @@ io.on('connection', (socket) => {
     const user = await User.findOne({ username: data.username, password: data.password });
     if (!user) return socket.emit('auth_error', 'Datos incorrectos.');
     
-    socket.username = user.username;
-    connectedUsers[user.username] = socket.id;
-    
+    socket.username = user.username; connectedUsers[user.username] = socket.id;
     const myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] }).sort({ timestamp: 1 });
     const contactsSet = new Set();
-    myMsgs.forEach(m => {
-        if (m.sender !== user.username) contactsSet.add(m.sender);
-        if (m.receiver !== user.username) contactsSet.add(m.receiver);
-    });
+    myMsgs.forEach(m => { if (m.sender !== user.username) contactsSet.add(m.sender); if (m.receiver !== user.username) contactsSet.add(m.receiver); });
     
     const contactsInfo = await User.find({ username: { $in: Array.from(contactsSet) } }, 'username profilePic phone');
-    
     socket.emit('login_success', { username: user.username, profilePic: user.profilePic, phone: user.phone });
     socket.emit('load_initial_data', { messages: myMsgs, contacts: contactsInfo });
     io.emit('online_status', Object.keys(connectedUsers));
@@ -67,112 +92,75 @@ io.on('connection', (socket) => {
   socket.on('search_contact', async (query) => {
     if (query === socket.username) return socket.emit('search_error', 'No puedes agregarte a ti mismo.');
     const user = await User.findOne({ $or: [{ username: query }, { phone: query }] }, 'username profilePic phone');
-    if (user) socket.emit('contact_found', user);
-    else socket.emit('search_error', 'Usuario o teléfono no encontrado.');
+    if (user) socket.emit('contact_found', user); else socket.emit('search_error', 'No encontrado.');
   });
 
   socket.on('update_profile_pic', async (base64) => {
     await User.updateOne({ username: socket.username }, { profilePic: base64 });
-    socket.emit('profile_pic_updated', base64);
-    io.emit('contact_pic_updated', { username: socket.username, profilePic: base64 });
+    socket.emit('profile_pic_updated', base64); io.emit('contact_pic_updated', { username: socket.username, profilePic: base64 });
   });
 
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMsg = new Message({ 
-        sender: socket.username, receiver: data.receiver, 
-        text: data.text, type: data.type, time: timeNow, 
-        viewOnce: data.viewOnce || false 
-    });
+    const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow, viewOnce: data.viewOnce || false });
     const savedMsg = await newMsg.save(); 
-    const receiverSocket = connectedUsers[data.receiver];
-    if (receiverSocket) io.to(receiverSocket).emit('chat message', savedMsg); 
     socket.emit('chat message', savedMsg); 
+
+    const receiverSocket = connectedUsers[data.receiver];
+    if (receiverSocket) {
+        // Si está online, enviarlo normal
+        io.to(receiverSocket).emit('chat message', savedMsg); 
+    } else {
+        // --- LA MAGIA: EL USUARIO ESTÁ DESCONECTADO (O CON LA APP CERRADA) ---
+        const receiverUser = await User.findOne({username: data.receiver});
+        if(receiverUser && receiverUser.pushSubscription) {
+            let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
+            if (data.viewOnce) notifText = '🖼️ Foto efímera';
+            const payload = JSON.stringify({ title: 'SendGuz: ' + socket.username, body: notifText });
+            // Despertar al fantasma
+            webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
+        }
+    }
   });
 
   socket.on('mark_read', async (senderName) => {
     await Message.updateMany({ sender: senderName, receiver: socket.username, status: 'sent' }, { status: 'read' });
-    const senderSocket = connectedUsers[senderName];
-    if (senderSocket) io.to(senderSocket).emit('messages_read', socket.username);
+    const senderSocket = connectedUsers[senderName]; if (senderSocket) io.to(senderSocket).emit('messages_read', socket.username);
   });
 
   socket.on('delete_message', async (msgId) => {
     const msg = await Message.findById(msgId);
-    if (msg && msg.sender === socket.username) {
-        msg.deleted = true; await msg.save();
-        io.emit('message_deleted', msgId);
-    }
+    if (msg && msg.sender === socket.username) { msg.deleted = true; await msg.save(); io.emit('message_deleted', msgId); }
   });
 
-  // NUEVO: Destruir imagen de "Ver una sola vez"
   socket.on('mark_viewed', async (msgId) => {
     const msg = await Message.findById(msgId);
-    if (msg && !msg.viewed && msg.viewOnce) {
-        msg.viewed = true;
-        msg.text = "destruido"; // Se borra la imagen de la base de datos por seguridad
-        await msg.save();
-        io.emit('message_viewed', msgId);
-    }
+    if (msg && !msg.viewed && msg.viewOnce) { msg.viewed = true; msg.text = "destruido"; await msg.save(); io.emit('message_viewed', msgId); }
   });
 
   socket.on('delete_chat', async (targetUser) => {
     if (!socket.username) return;
-    await Message.deleteMany({
-        $or: [
-            { sender: socket.username, receiver: targetUser },
-            { sender: targetUser, receiver: socket.username }
-        ]
-    });
+    await Message.deleteMany({ $or: [ { sender: socket.username, receiver: targetUser }, { sender: targetUser, receiver: socket.username } ] });
     const targetSocket = connectedUsers[targetUser];
     if (targetSocket) io.to(targetSocket).emit('chat_deleted', socket.username);
     socket.emit('chat_deleted', targetUser);
   });
 
   socket.on('typing', (data) => {
-    const receiverSocket = connectedUsers[data.receiver];
-    if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
+    const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  socket.on('call_user', (data) => {
-    const receiverSocket = connectedUsers[data.userToCall];
-    if(receiverSocket) io.to(receiverSocket).emit('incoming_call', { from: socket.username });
-  });
-  
-  socket.on('accept_call', (data) => {
-    const callerSocket = connectedUsers[data.to];
-    if(callerSocket) io.to(callerSocket).emit('call_accepted', { from: socket.username });
-  });
-
-  socket.on('reject_call', (data) => {
-    const callerSocket = connectedUsers[data.to];
-    if(callerSocket) io.to(callerSocket).emit('call_rejected', { from: socket.username });
-  });
-
-  socket.on('end_call', (data) => {
-    const otherSocket = connectedUsers[data.to];
-    if(otherSocket) io.to(otherSocket).emit('call_ended');
-  });
-
-  socket.on('webrtc_offer', (data) => {
-    const receiverSocket = connectedUsers[data.to];
-    if(receiverSocket) io.to(receiverSocket).emit('webrtc_offer', { from: socket.username, sdp: data.sdp });
-  });
-
-  socket.on('webrtc_answer', (data) => {
-    const receiverSocket = connectedUsers[data.to];
-    if(receiverSocket) io.to(receiverSocket).emit('webrtc_answer', { from: socket.username, sdp: data.sdp });
-  });
-
-  socket.on('webrtc_ice_candidate', (data) => {
-    const receiverSocket = connectedUsers[data.to];
-    if(receiverSocket) io.to(receiverSocket).emit('webrtc_ice_candidate', { from: socket.username, candidate: data.candidate });
-  });
+  // (Videollamadas)
+  socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username }); });
+  socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
+  socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
+  socket.on('end_call', (data) => { const o = connectedUsers[data.to]; if(o) io.to(o).emit('call_ended'); });
+  socket.on('webrtc_offer', (data) => { const r = connectedUsers[data.to]; if(r) io.to(r).emit('webrtc_offer', { from: socket.username, sdp: data.sdp }); });
+  socket.on('webrtc_answer', (data) => { const r = connectedUsers[data.to]; if(r) io.to(r).emit('webrtc_answer', { from: socket.username, sdp: data.sdp }); });
+  socket.on('webrtc_ice_candidate', (data) => { const r = connectedUsers[data.to]; if(r) io.to(r).emit('webrtc_ice_candidate', { from: socket.username, candidate: data.candidate }); });
 
   socket.on('disconnect', () => {
-    if (socket.username) {
-      delete connectedUsers[socket.username];
-      io.emit('online_status', Object.keys(connectedUsers));
-    }
+    if (socket.username) { delete connectedUsers[socket.username]; io.emit('online_status', Object.keys(connectedUsers)); }
   });
 });
 
