@@ -5,19 +5,23 @@ const io = require('socket.io')(http, { maxHttpBufferSize: 20 * 1024 * 1024 });
 const mongoose = require('mongoose');
 const webpush = require('web-push');
 
-// --- LLAVES DE SEGURIDAD (VAPID) PARA GOOGLE Y APPLE ---
 const publicVapidKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB22-xO3U-2XMDn-R_cewgKMc';
 const privateVapidKey = 'HqX-TndhI0Pnt6O-4R1R_xM7rD2X1wE90-hK8-21TGE';
 webpush.setVapidDetails('mailto:soporte@sendguz.com', publicVapidKey, privateVapidKey);
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
-// --- TRUCO MAESTRO: ARCHIVOS VIRTUALES PARA CONVERTIR EN APP (PWA) ---
+// --- NUEVO: CREACIÓN DEL ICONO DEL LOBO OFICIAL ---
+app.get('/icon.svg', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🐺</text></svg>);
+});
+
 app.get('/manifest.json', (req, res) => {
   res.json({
     name: "SendGuz", short_name: "SendGuz", start_url: "/", display: "standalone",
     background_color: "#09090b", theme_color: "#4f46e5",
-    icons: [{ src: "https://api.dicebear.com/7.x/bottts/svg?seed=Wolf", sizes: "192x192", type: "image/svg+xml" }]
+    icons: [{ src: "/icon.svg", sizes: "192x192 512x512", type: "image/svg+xml", purpose: "any maskable" }]
   });
 });
 
@@ -27,7 +31,7 @@ app.get('/sw.js', (req, res) => {
     self.addEventListener('push', function(e) {
       const data = e.data.json();
       self.registration.showNotification(data.title, {
-        body: data.body, icon: 'https://api.dicebear.com/7.x/bottts/svg?seed=Wolf', vibrate: [200, 100, 200], data: { url: '/' }
+        body: data.body, icon: '/icon.svg', vibrate: [200, 100, 200], data: { url: '/' }
       });
     });
     self.addEventListener('notificationclick', function(e) {
@@ -42,7 +46,7 @@ if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ BD Conectad
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true }, phone: { type: String, unique: true },
   password: String, profilePic: { type: String, default: '' },
-  pushSubscription: { type: Object, default: null } // NUEVO: Memoria del Fantasma
+  pushSubscription: { type: Object, default: null } 
 });
 const User = mongoose.model('User', userSchema);
 
@@ -58,7 +62,6 @@ let connectedUsers = {};
 
 io.on('connection', (socket) => {
   
-  // Guardar la suscripción del fantasma en la BD
   socket.on('save_subscription', async (sub) => {
     if(socket.username) await User.updateOne({ username: socket.username }, { pushSubscription: sub });
   });
@@ -108,16 +111,13 @@ io.on('connection', (socket) => {
 
     const receiverSocket = connectedUsers[data.receiver];
     if (receiverSocket) {
-        // Si está online, enviarlo normal
         io.to(receiverSocket).emit('chat message', savedMsg); 
     } else {
-        // --- LA MAGIA: EL USUARIO ESTÁ DESCONECTADO (O CON LA APP CERRADA) ---
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
             let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
             if (data.viewOnce) notifText = '🖼️ Foto efímera';
             const payload = JSON.stringify({ title: 'SendGuz: ' + socket.username, body: notifText });
-            // Despertar al fantasma
             webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
         }
     }
@@ -150,7 +150,7 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  // (Videollamadas)
+  // Videollamadas
   socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username }); });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
@@ -165,4 +165,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V7 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V8 corriendo en puerto " + PORT));
