@@ -24,26 +24,26 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// FANTASMA BLINDADO Y ANTI-CACHÉ
+// FANTASMA V3: Optimizado estrictamente para iOS
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); // ESTO OBLIGA A APPLE A ACTUALIZAR
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); 
   res.send(`
     self.addEventListener('push', function(e) {
-      try {
-        const data = e.data.json();
-        e.waitUntil(
-          self.registration.showNotification(data.title, {
-            body: data.body,
-            icon: '/icon.svg',
-            badge: '/icon.svg',
-            vibrate: [300, 100, 400],
-            tag: 'sendguz-msg',
-            renotify: true,
-            data: { url: '/' }
-          })
-        );
-      } catch(err) { console.error("Error en SW Push", err); }
+      let data = { title: 'Nuevo mensaje', body: 'Tienes un mensaje en SendGuz' };
+      if (e.data) { data = e.data.json(); }
+      
+      const options = {
+        body: data.body,
+        icon: '/icon.svg',
+        badge: '/icon.svg',
+        vibrate: [300, 100, 400],
+        tag: 'sendguz-msg',
+        renotify: true,
+        data: { url: '/' }
+      };
+      
+      e.waitUntil(self.registration.showNotification(data.title, options));
     });
 
     self.addEventListener('notificationclick', function(e) {
@@ -144,20 +144,16 @@ io.on('connection', (socket) => {
 
     const receiverSocket = connectedUsers[data.receiver];
     
-    // 1. Si está conectado y activo, mandamos el mensaje al chat en vivo
     if (receiverSocket && userStatus[data.receiver] === 'active') {
         io.to(receiverSocket).emit('chat message', savedMsg); 
     } 
     
-    // 2. Si NO está conectado, O la app está minimizada (background), lanzamos la Notificación Push
     if (!receiverSocket || userStatus[data.receiver] !== 'active') {
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
             let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
             if (data.viewOnce) notifText = '🖼️ Foto efímera';
             const payload = JSON.stringify({ title: 'SendGuz: ' + socket.username, body: notifText });
-            
-            // Disparamos la notificación de sistema
             webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
         }
     }
@@ -201,7 +197,6 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (socket.username) { 
         delete connectedUsers[socket.username]; 
-        // TRUCO: Le decimos a la base de datos que se desconectó, para que sí o sí mande Push
         userStatus[socket.username] = 'background';
         io.emit('online_status', Object.keys(connectedUsers)); 
     }
@@ -209,4 +204,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V14 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V15 corriendo en puerto " + PORT));
