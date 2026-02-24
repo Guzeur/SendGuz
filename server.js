@@ -11,10 +11,9 @@ webpush.setVapidDetails('mailto:soporte@sendguz.com', publicVapidKey, privateVap
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
-// --- NUEVO: CREACIÓN DEL ICONO DEL LOBO OFICIAL ---
 app.get('/icon.svg', (req, res) => {
   res.setHeader('Content-Type', 'image/svg+xml');
-  res.send(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🐺</text></svg>);
+  res.send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🐺</text></svg>');
 });
 
 app.get('/manifest.json', (req, res) => {
@@ -27,21 +26,11 @@ app.get('/manifest.json', (req, res) => {
 
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.send(`
-    self.addEventListener('push', function(e) {
-      const data = e.data.json();
-      self.registration.showNotification(data.title, {
-        body: data.body, icon: '/icon.svg', vibrate: [200, 100, 200], data: { url: '/' }
-      });
-    });
-    self.addEventListener('notificationclick', function(e) {
-      e.notification.close(); e.waitUntil(clients.openWindow(e.notification.data.url));
-    });
-  `);
+  res.send("self.addEventListener('push', function(e) { const data = e.data.json(); self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', vibrate: [200, 100, 200], data: { url: '/' } }); }); self.addEventListener('notificationclick', function(e) { e.notification.close(); e.waitUntil(clients.openWindow(e.notification.data.url)); });");
 });
 
 const mongoURI = process.env.MONGO_URI;
-if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ BD Conectada')).catch(e => console.log(e));
+if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ Base de datos Conectada')).catch(e => console.log(e));
 
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true }, phone: { type: String, unique: true },
@@ -115,8 +104,8 @@ io.on('connection', (socket) => {
     } else {
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
-            let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
-            if (data.viewOnce) notifText = '🖼️ Foto efímera';
+            let notifText = data.type === 'image' ? 'Imagen' : (data.type === 'audio' ? 'Nota de voz' : data.text);
+            if (data.viewOnce) notifText = 'Foto efímera';
             const payload = JSON.stringify({ title: 'SendGuz: ' + socket.username, body: notifText });
             webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
         }
@@ -150,7 +139,6 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  // Videollamadas
   socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username }); });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
@@ -165,4 +153,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V8 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V9 corriendo en puerto " + PORT));
