@@ -9,29 +9,16 @@
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
-        .chat-tab { cursor: pointer; transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+        .chat-tab { cursor: pointer; transition: background-color 0.2s; -webkit-tap-highlight-color: transparent; user-select: none; }
         .chat-tab:hover { background: #27272a; }
+        .chat-tab:active { background: #3f3f46; }
         .active-tab { background: #3f3f46; border-left: 4px solid #4f46e5; }
         .msg-deleted { font-style: italic; color: #a1a1aa; display: flex; align-items: center; gap: 5px; }
         
-        /* Ajustes de pulsación larga y estética móvil */
-        .msg-bubble { 
-            user-select: none; 
-            -webkit-user-select: none; 
-            -webkit-touch-callout: none; 
-            transition: transform 0.1s; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-        }
+        .msg-bubble { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform 0.1s; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
         .msg-bubble:active { transform: scale(0.97); }
         
-        /* Fondo clásico de chat tipo WhatsApp */
-        .chat-bg {
-            background-color: #0b141a;
-            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
-            background-blend-mode: multiply;
-            background-size: contain;
-        }
-
+        .chat-bg { background-color: #0b141a; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: multiply; background-size: contain; }
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
         .recording { animation: pulse-red 1.5s infinite; background-color: #ef4444 !important; color: white !important; }
         
@@ -40,6 +27,8 @@
             #chat-area { display: none !important; width: 100% !important; height: 100vh !important; }
             .mobile-chat-active #sidebar { display: none !important; }
             .mobile-chat-active #chat-area { display: flex !important; }
+            /* Separación estética para el móvil en el header */
+            #active-chat-header { padding-top: 20px; padding-bottom: 20px; }
         }
     </style>
 </head>
@@ -50,7 +39,7 @@
             <span class="text-5xl drop-shadow-lg">🐺</span>
             <h1 class="text-4xl font-extrabold tracking-tight text-white">SendGuz</h1>
         </div>
-        <p class="text-sm text-zinc-400 mb-8">Comunicación Privada y Segura</p>
+        <p class="text-sm text-zinc-400 mb-8">Comunicación Privada</p>
         <input id="l-user" type="text" placeholder="Usuario" class="w-full p-3 rounded-xl bg-zinc-800 mb-3 outline-none focus:ring-2 focus:ring-indigo-500">
         <input id="l-phone" type="text" placeholder="Teléfono" class="w-full p-3 rounded-xl bg-zinc-800 mb-3 outline-none focus:ring-2 focus:ring-indigo-500">
         <input id="l-pass" type="password" placeholder="Contraseña" class="w-full p-3 rounded-xl bg-zinc-800 mb-6 outline-none focus:ring-2 focus:ring-indigo-500">
@@ -64,14 +53,17 @@
     <div id="chat-screen" class="hidden w-full h-screen md:h-[95vh] md:max-w-6xl bg-zinc-900 md:rounded-3xl overflow-hidden flex border-zinc-800 shadow-2xl">
         
         <div id="sidebar" class="w-full md:w-1/3 bg-zinc-950 border-r border-zinc-800 flex flex-col h-full">
-            <div class="p-4 bg-zinc-950 flex items-center justify-between border-b border-zinc-900">
+            <div class="p-4 md:py-5 bg-zinc-950 flex items-center justify-between border-b border-zinc-900">
                 <div class="flex items-center gap-2">
                     <span class="text-2xl">🐺</span>
                     <span class="font-extrabold text-xl tracking-tight text-white">SendGuz</span>
                 </div>
-                <button onclick="addContact()" class="bg-indigo-600/20 text-indigo-400 p-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-sm font-bold">
-                    ➕ <span class="hidden md:inline ml-1">Nuevo</span>
-                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="logout()" class="text-zinc-400 hover:text-red-400 p-2 rounded-lg transition-colors text-xl" title="Cerrar Sesión">🚪</button>
+                    <button onclick="addContact()" class="bg-indigo-600/20 text-indigo-400 p-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-sm font-bold">
+                        ➕ <span class="hidden md:inline ml-1">Nuevo</span>
+                    </button>
+                </div>
             </div>
 
             <div class="px-4 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 cursor-pointer hover:bg-zinc-800 transition-colors" onclick="document.getElementById('my-pic-upload').click()">
@@ -97,21 +89,21 @@
                 <h2 class="text-xl font-bold text-zinc-400">SendGuz Privado</h2>
             </div>
 
-            <div id="active-chat-header" class="hidden bg-zinc-900/95 backdrop-blur-md p-3 flex justify-between items-center border-b border-zinc-800 z-20 flex-shrink-0 cursor-pointer hover:bg-zinc-800 transition" onclick="renameContact()" title="Toca para cambiar nombre">
-                <div class="flex items-center gap-3">
-                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-2xl p-1">←</button>
-                    <div id="active-pic-container" class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
+            <div id="active-chat-header" class="hidden bg-zinc-900/95 backdrop-blur-md p-4 flex justify-between items-center border-b border-zinc-800 z-20 flex-shrink-0 cursor-pointer hover:bg-zinc-800 transition shadow-sm" onclick="renameContact()" title="Toca para cambiar nombre">
+                <div class="flex items-center gap-3 md:gap-4">
+                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-2xl p-2 -ml-2 text-zinc-300 hover:text-white">←</button>
+                    <div id="active-pic-container" class="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden shadow-sm">
                         <img id="active-pic" src="" class="hidden w-full h-full object-cover">
                         <span id="active-pic-placeholder" class="text-zinc-500 text-xl">👤</span>
                     </div>
                     <div>
-                        <h3 id="chat-title" class="font-bold text-sm md:text-base truncate"></h3>
-                        <span id="chat-status" class="text-[10px] md:text-xs text-green-400 block"></span>
+                        <h3 id="chat-title" class="font-bold text-base md:text-lg truncate tracking-tight text-white"></h3>
+                        <span id="chat-status" class="text-[11px] md:text-xs text-green-400 block font-medium"></span>
                     </div>
                 </div>
             </div>
             
-            <div id="messages" class="flex-1 p-4 md:px-8 overflow-y-auto flex flex-col gap-2 z-0 overflow-x-hidden"></div>
+            <div id="messages" class="flex-1 p-4 md:px-8 overflow-y-auto flex flex-col gap-2 z-0 overflow-x-hidden pb-6"></div>
 
             <div id="emoji-picker" class="hidden absolute bottom-[80px] left-2 bg-zinc-800 border border-zinc-700 p-4 rounded-2xl grid grid-cols-6 gap-3 text-2xl z-50 shadow-2xl">
                 <span class="cursor-pointer hover:scale-110" onclick="addEmoji('😀')">😀</span>
@@ -133,7 +125,9 @@
                     <button type="button" onclick="toggleEmojis()" class="p-2 text-2xl text-zinc-400 hover:text-white">😊</button>
                     <input type="file" id="image-upload" accept="image/*" class="hidden">
                     <button type="button" onclick="document.getElementById('image-upload').click()" class="p-2 text-xl text-zinc-400 hover:text-white">📎</button>
+                    
                     <input id="input" autocomplete="off" placeholder="Escribe un mensaje..." class="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none">
+                    
                     <button type="button" id="mic-btn" onclick="toggleAudio()" class="w-10 h-10 flex items-center justify-center bg-indigo-600 rounded-full text-lg shadow-md hover:scale-105 transition-transform">🎤</button>
                     <button type="submit" id="send-btn" class="hidden w-10 h-10 flex items-center justify-center bg-green-500 rounded-full text-lg shadow-md hover:scale-105 transition-transform">🚀</button>
                 </form>
@@ -149,12 +143,8 @@
         let allMessages = [], contacts = {}, unreadCounts = {}, typingStatus = {}, onlineUsers = [];
         let mediaRecorder, audioChunks = [], isRecording = false;
 
-        // Memoria para guardar apodos locales
         let aliases = JSON.parse(localStorage.getItem('sg_aliases')) || {};
-
-        function getDisplayName(username) {
-            return aliases[username] || username;
-        }
+        function getDisplayName(username) { return aliases[username] || username; }
 
         function renameContact() {
             if(!activeChat) return;
@@ -166,6 +156,10 @@
                 document.getElementById('chat-title').textContent = aliases[activeChat];
                 renderUserList();
             }
+        }
+
+        function logout() {
+            if(confirm("¿Seguro que quieres cerrar sesión?")) location.reload();
         }
 
         function login() {
@@ -202,11 +196,8 @@
         function updateAvatarDisplay(imgId, placeholderId, picData) {
             const img = document.getElementById(imgId);
             const ph = document.getElementById(placeholderId);
-            if(picData && picData !== "") {
-                img.src = picData; img.classList.remove('hidden'); ph.classList.add('hidden');
-            } else {
-                img.classList.add('hidden'); ph.classList.remove('hidden');
-            }
+            if(picData && picData !== "") { img.src = picData; img.classList.remove('hidden'); ph.classList.add('hidden'); } 
+            else { img.classList.add('hidden'); ph.classList.remove('hidden'); }
         }
 
         function addContact() {
@@ -243,7 +234,6 @@
                 const avatarHtml = pic ? "<img src='" + pic + "' class='w-12 h-12 rounded-full object-cover'>" : "<div class='w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-xl'>👤</div>";
 
                 const div = document.createElement('div');
-                div.onclick = () => openChat(target);
                 div.className = "chat-tab p-4 border-b border-zinc-900/50 flex items-center justify-between " + (activeChat === target ? "active-tab" : "");
                 
                 let unreadHtml = unread > 0 ? "<div class='bg-indigo-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full'>" + unread + "</div>" : "";
@@ -255,6 +245,25 @@
                                         "<span class='text-xs text-zinc-400 block truncate'>" + preview + "</span>" +
                                     "</div>" +
                                 "</div>" + unreadHtml;
+                
+                // EVENTOS: Clic corto para abrir, Pulsación larga para borrar chat
+                let pressTimer;
+                const startPress = (e) => {
+                    pressTimer = setTimeout(() => {
+                        if(confirm("¿Eliminar toda la conversación con " + displayName + "?")) socket.emit('delete_chat', target);
+                    }, 800);
+                };
+                const endPress = () => { clearTimeout(pressTimer); };
+                
+                div.onclick = () => openChat(target);
+                div.addEventListener('mousedown', startPress);
+                div.addEventListener('touchstart', startPress, {passive: true});
+                div.addEventListener('mouseup', endPress);
+                div.addEventListener('mouseleave', endPress);
+                div.addEventListener('touchend', endPress);
+                div.addEventListener('touchcancel', endPress);
+                div.oncontextmenu = (e) => { e.preventDefault(); return false; };
+
                 list.appendChild(div);
             });
         }
@@ -290,9 +299,9 @@
                 if (msg.deleted) {
                     contentHTML = "<span class='msg-deleted'>🚫 Eliminado</span>";
                 } else if (msg.type === 'image') {
-                    contentHTML = "<img src='" + msg.text + "' class='rounded-xl max-w-[200px] sm:max-w-[250px]'>";
+                    contentHTML = "<img src='" + msg.text + "' class='rounded-xl max-w-[200px] sm:max-w-[250px] mt-1 shadow-sm'>";
                 } else if (msg.type === 'audio') {
-                    contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60'></audio>";
+                    contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60 mt-1'></audio>";
                 } else {
                     contentHTML = "<p class='text-sm leading-relaxed'>" + msg.text + "</p>";
                 }
@@ -303,25 +312,22 @@
                 bubble.className = "msg-bubble max-w-[85%] px-3 py-2 rounded-2xl " + (isMe ? "bg-[#005c4b] text-white rounded-tr-none" : "bg-zinc-800 text-white rounded-tl-none");
                 bubble.innerHTML = contentHTML + "<div class='flex justify-end items-center mt-1'><span class='text-[9px] opacity-70'>" + msg.time + "</span>" + ticks + "</div>";
                 
-                // --- MAGIA: PULSACIÓN LARGA PARA BORRAR ---
+                // Pulsación Larga para Borrar Mensaje
                 if (isMe && !msg.deleted) {
                     let pressTimer;
                     const startPress = (e) => {
                         pressTimer = setTimeout(() => {
-                            if(confirm("¿Eliminar mensaje para todos?")) socket.emit('delete_message', msg._id);
-                        }, 600); // 600 milisegundos
+                            if(confirm("¿Eliminar este mensaje para todos?")) socket.emit('delete_message', msg._id);
+                        }, 600);
                     };
                     const endPress = () => { clearTimeout(pressTimer); };
                     
-                    // Eventos táctiles y de ratón
                     bubble.addEventListener('mousedown', startPress);
                     bubble.addEventListener('touchstart', startPress, {passive: true});
                     bubble.addEventListener('mouseup', endPress);
                     bubble.addEventListener('mouseleave', endPress);
                     bubble.addEventListener('touchend', endPress);
                     bubble.addEventListener('touchcancel', endPress);
-                    
-                    // Bloquear clic derecho para que no estorbe en PC/Móvil
                     bubble.oncontextmenu = (e) => { e.preventDefault(); return false; };
                 }
 
@@ -341,6 +347,19 @@
             renderMessages(); renderUserList(); 
         });
 
+        // Evento cuando se borra un chat completo
+        socket.on('chat_deleted', (target) => {
+            allMessages = allMessages.filter(m => !( (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target) ));
+            delete contacts[target];
+            if(activeChat === target) {
+                closeChatMobile();
+                document.getElementById('empty-chat').classList.remove('hidden');
+                document.getElementById('active-chat-header').classList.add('hidden');
+                document.getElementById('form').classList.add('hidden');
+            }
+            renderUserList();
+        });
+
         socket.on('online_status', users => { onlineUsers = users; renderUserList(); });
         socket.on('messages_read', reader => { allMessages.forEach(m => { if (m.sender === myUsername && m.receiver === reader) m.status = 'read'; }); renderMessages(); });
         socket.on('message_deleted', id => { const m = allMessages.find(x => x._id === id); if(m){ m.deleted = true; renderMessages(); renderUserList(); } });
@@ -355,7 +374,7 @@
 
         document.getElementById('form').addEventListener('submit', (e) => {
             e.preventDefault();
-            document.getElementById('emoji-picker').classList.add('hidden'); // Ocultar emojis al enviar
+            document.getElementById('emoji-picker').classList.add('hidden');
             if (input.value.trim()) {
                 socket.emit('chat message', { text: input.value, type: 'text', receiver: activeChat });
                 input.value = ''; socket.emit('typing', { isTyping: false, receiver: activeChat });
@@ -379,6 +398,18 @@
                 } catch(e) { alert("Permite el micrófono"); }
             } else { mediaRecorder.stop(); isRecording = false; document.getElementById('mic-btn').classList.remove('recording'); }
         }
+
+        // --- ESTO ES LO QUE FALTABA PARA LAS FOTOS ---
+        document.getElementById('image-upload').addEventListener('change', function() {
+            const file = this.files[0];
+            if(file) {
+                if(file.size > 15 * 1024 * 1024) return alert("Imagen muy pesada (máximo 15MB).");
+                const reader = new FileReader();
+                reader.onload = e => socket.emit('chat message', { text: e.target.result, type: 'image', receiver: activeChat });
+                reader.readAsDataURL(file);
+                this.value = ''; // Limpiar para poder enviar otra igual
+            }
+        });
 
         document.getElementById('my-pic-upload').addEventListener('change', function() {
             const file = this.files[0];
