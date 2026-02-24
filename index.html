@@ -67,12 +67,11 @@
     <script>
         const socket = io();
         let myUsername = "";
-        let activeChat = "Global"; // Determina si hablamos en global o privado
-        let allMessages = []; // Memoria temporal de todos los mensajes
+        let activeChat = "Global";
+        let allMessages = [];
 
         const authMsg = document.getElementById('auth-msg');
 
-        // --- AUTENTICACIÓN ---
         function register() {
             const u = document.getElementById('user-input').value.trim();
             const p = document.getElementById('pass-input').value.trim();
@@ -105,47 +104,38 @@
             document.getElementById('chat-screen').classList.add('flex');
         });
 
-        // --- SISTEMA DE PESTAÑAS (CHATS) ---
         function openChat(targetUser) {
             activeChat = targetUser;
-            
-            // Cambiar título
             document.getElementById('chat-title').textContent = targetUser === 'Global' ? '🌍 Sala Global' : '🔒 Chat Privado con ' + targetUser;
             
-            // Pintar la pestaña activa
             document.querySelectorAll('.chat-tab').forEach(el => el.classList.remove('active-tab'));
             const tab = document.getElementById('tab-' + targetUser);
             if(tab) tab.classList.add('active-tab');
 
-            renderMessages(); // Recargar mensajes para mostrar solo los de este chat
+            renderMessages();
         }
 
-        // --- ACTUALIZAR LISTA DE USUARIOS LATERAL ---
         socket.on('user list', (names) => {
             const list = document.getElementById('user-list');
-            list.innerHTML = names.filter(n => n !== myUsername).map(name => `
-                <div onclick="openChat('${name}')" id="tab-${name}" class="chat-tab p-4 border-b border-zinc-800 flex items-center gap-3">
-                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=${name}" class="w-10 h-10 rounded-full bg-zinc-800" />
-                    <span class="font-medium text-zinc-300">${name}</span>
-                </div>
-            `).join('');
+            list.innerHTML = names.filter(n => n !== myUsername).map(name => 
+                "<div onclick=\"openChat('" + name + "')\" id=\"tab-" + name + "\" class=\"chat-tab p-4 border-b border-zinc-800 flex items-center gap-3\">" +
+                    "<img src=\"https://api.dicebear.com/7.x/bottts/svg?seed=" + name + "\" class=\"w-10 h-10 rounded-full bg-zinc-800\" />" +
+                    "<span class=\"font-medium text-zinc-300\">" + name + "</span>" +
+                "</div>"
+            ).join('');
             
-            // Mantener seleccionada la pestaña actual si se actualiza la lista
             const currentTab = document.getElementById('tab-' + activeChat);
             if(currentTab) currentTab.classList.add('active-tab');
         });
 
-        // --- GESTIÓN DE MENSAJES ---
         function renderMessages() {
             const box = document.getElementById('messages');
             box.innerHTML = '';
             
             allMessages.forEach(msg => {
-                // FILTRO MÁGICO: Decidir qué mensajes mostrar
                 let shouldShow = false;
                 if (activeChat === 'Global' && msg.receiver === 'Global') shouldShow = true;
                 if (activeChat !== 'Global') {
-                    // Si el chat es privado, mostrar si yo lo envié al amigo, o si el amigo me lo envió a mí
                     if ((msg.sender === myUsername && msg.receiver === activeChat) || 
                         (msg.sender === activeChat && msg.receiver === myUsername)) {
                         shouldShow = true;
@@ -158,41 +148,35 @@
                     div.className = "flex flex-col " + (isMe ? "items-end" : "items-start");
                     
                     let content = msg.type === 'image' 
-                        ? <img src="${msg.text}" class="rounded-lg mt-2 max-w-[250px] shadow-sm"> 
-                        : <p class="text-sm">${msg.text}</p>;
+                        ? "<img src='" + msg.text + "' class='rounded-lg mt-2 max-w-[250px] shadow-sm'>" 
+                        : "<p class='text-sm'>" + msg.text + "</p>";
 
-                    div.innerHTML = `
-                        <div class='flex items-center gap-2 mb-1'>
-                            <span class='text-xs font-bold ${isMe ? "text-indigo-400" : "text-zinc-400"}'>${msg.sender}</span>
-                            <span class='text-[10px] text-zinc-600'>${msg.time}</span>
-                        </div>
-                        <div class='p-3 rounded-2xl max-w-sm shadow-md ${isMe ? "bg-indigo-600 rounded-tr-none" : "bg-zinc-800 rounded-tl-none"}'>
-                            ${content}
-                        </div>`;
+                    div.innerHTML = "<div class='flex items-center gap-2 mb-1'>" +
+                            "<span class='text-xs font-bold " + (isMe ? "text-indigo-400" : "text-zinc-400") + "'>" + msg.sender + "</span>" +
+                            "<span class='text-[10px] text-zinc-600'>" + msg.time + "</span>" +
+                        "</div>" +
+                        "<div class='p-3 rounded-2xl max-w-sm shadow-md " + (isMe ? "bg-indigo-600 rounded-tr-none" : "bg-zinc-800 rounded-tl-none") + "'>" +
+                            content +
+                        "</div>";
                     box.appendChild(div);
                 }
             });
             box.scrollTop = box.scrollHeight;
         }
 
-        // Recibir historial inicial de la base de datos
         socket.on('load_history', (msgs) => {
             allMessages = msgs;
             renderMessages();
         });
 
-        // Recibir un mensaje nuevo en vivo
         socket.on('chat message', (msg) => {
             allMessages.push(msg);
-            
-            // Sonido de notificación si no soy yo y si me lo enviaron a mí (o al global)
             if (msg.sender !== myUsername && (msg.receiver === 'Global' || msg.receiver === myUsername)) {
                 document.getElementById('notif-sound').play().catch(()=>{});
             }
-            renderMessages(); // Refrescar pantalla
+            renderMessages();
         });
 
-        // Enviar mensaje de texto
         document.getElementById('form').addEventListener('submit', (e) => {
             e.preventDefault();
             const input = document.getElementById('input');
@@ -202,7 +186,6 @@
             }
         });
 
-        // Enviar Imagen
         const imgUpload = document.getElementById('image-upload');
         document.getElementById('img-btn').addEventListener('click', () => imgUpload.click());
         imgUpload.addEventListener('change', function() {
