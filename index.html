@@ -240,8 +240,8 @@
         async function setupPushNotifications() {
             if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
                 try {
-                    // EL TRUCO: Forzamos la descarga del fantasma "Versión 2"
-                    const register = await navigator.serviceWorker.register('/sw.js?v=2');
+                    // VERSION 3 DEL FANTASMA: Obliga al iPhone a actualizar el Service Worker
+                    const register = await navigator.serviceWorker.register('/sw.js?v=3');
                     const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) });
                     socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription)));
                 } catch(e) { console.log("PUSH no activado", e); }
@@ -252,8 +252,24 @@
             allMessages = data.messages; 
             data.contacts.forEach(function(c) { contacts[c.username] = c; }); 
             typingStatus = {}; 
+            
+            // --- LA SOLUCIÓN MAESTRA: RECALCULAR MENSAJES NO LEÍDOS MATEMÁTICAMENTE ---
+            unreadCounts = {};
+            allMessages.forEach(function(m) {
+                // Si el mensaje es para mí, y aún dice "sent" (enviado pero no leído)
+                if (m.receiver === myUsername && m.status === 'sent') {
+                    unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1;
+                }
+            });
+
             renderUserList(); 
-            if(activeChat) renderMessages();
+            if(activeChat) {
+                // Si justo abriste la app estando dentro del chat, márcarlos como leídos
+                socket.emit('mark_read', activeChat);
+                unreadCounts[activeChat] = 0;
+                renderMessages();
+                renderUserList();
+            }
         });
 
         function renameContact() { if(!activeChat) return; const currentName = getDisplayName(activeChat); const newAlias = prompt("Guardar contacto como:", currentName); if(newAlias !== null && newAlias.trim() !== "") { aliases[activeChat] = newAlias.trim(); localStorage.setItem('sg_aliases', JSON.stringify(aliases)); document.getElementById('chat-title').textContent = aliases[activeChat]; renderUserList(); } }
@@ -312,11 +328,12 @@
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
                 
-                if (document.visibilityState === "visible") {
+                if (!document.hidden) {
                     document.getElementById('notif-sound').play().catch(function(){});
+                    if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else { socket.emit('mark_read', msg.sender); }
+                } else {
+                    if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
                 }
-                
-                if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else socket.emit('mark_read', msg.sender);
             }
             renderMessages(); renderUserList(); 
         });
