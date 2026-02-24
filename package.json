@@ -1,14 +1,15 @@
 {
-  "name": "chat-pro",
-  "version": "1.0.0",
-  "description": "Super App de Chat",
+  "name": "sendguz",
+  "version": "7.0.0",
+  "description": "SendGuz Chat App",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.4",
-    "mongoose": "^8.2.0"
+    "mongoose": "^8.0.0",
+    "socket.io": "^4.7.2",
+    "web-push": "^3.6.7"
   }
 }
