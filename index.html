@@ -201,7 +201,6 @@
 
         function logout() { if(confirm("¿Cerrar sesión?")) { localStorage.removeItem('sg_user'); localStorage.removeItem('sg_pass'); location.reload(); } }
 
-        // --- MAGIA IOS: PEDIR PERMISO DE NOTIFICACIÓN AL HACER CLIC ---
         function requestPushPermission() {
             if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
                 Notification.requestPermission().then(function(permission) {
@@ -211,7 +210,7 @@
         }
 
         function login() { 
-            requestPushPermission(); // Forzar petición al sistema
+            requestPushPermission();
             const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); 
             if(u && pw) { localStorage.setItem('sg_temp_pass', pw); socket.emit('login', {username: u, password: pw}); } 
         }
@@ -241,10 +240,11 @@
         async function setupPushNotifications() {
             if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
                 try {
-                    const register = await navigator.serviceWorker.register('/sw.js');
+                    // EL TRUCO: Forzamos la descarga del fantasma "Versión 2"
+                    const register = await navigator.serviceWorker.register('/sw.js?v=2');
                     const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) });
                     socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription)));
-                } catch(e) { console.log("PUSH no activado"); }
+                } catch(e) { console.log("PUSH no activado", e); }
             }
         }
 
@@ -312,23 +312,11 @@
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
                 
-                // --- SOLUCIÓN PARA EL REPRODUCTOR DE MÚSICA DE IPHONE ---
-                if (!document.hidden) {
-                    // Solo sonará el Pop si tienes la app ABIERTA y viéndola
+                if (document.visibilityState === "visible") {
                     document.getElementById('notif-sound').play().catch(function(){});
-                    
-                    if (activeChat !== msg.sender) { 
-                        unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; 
-                    } else {
-                        socket.emit('mark_read', msg.sender);
-                    }
-                } else {
-                    // Si está en segundo plano, suma a la bolita pero NO TOCA EL AUDIO HTML5.
-                    // El "Fantasma" del servidor se encarga de mostrar la notificación nativa con sonido.
-                    if (activeChat !== msg.sender) { 
-                        unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; 
-                    }
                 }
+                
+                if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else socket.emit('mark_read', msg.sender);
             }
             renderMessages(); renderUserList(); 
         });
@@ -355,7 +343,6 @@
             renderUserList(); 
         });
 
-        // --- SISTEMA DE LLAMADAS (AUDIO Y VIDEO) ---
         async function startCall(isVideo) { 
             if(!activeChat) return; 
             currentCallUser = activeChat; 
