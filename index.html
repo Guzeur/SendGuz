@@ -27,8 +27,6 @@
             #chat-area { display: none !important; width: 100% !important; height: 100vh !important; }
             .mobile-chat-active #sidebar { display: none !important; }
             .mobile-chat-active #chat-area { display: flex !important; }
-            /* Separación estética para el móvil en el header */
-            #active-chat-header { padding-top: 20px; padding-bottom: 20px; }
         }
     </style>
 </head>
@@ -89,17 +87,21 @@
                 <h2 class="text-xl font-bold text-zinc-400">SendGuz Privado</h2>
             </div>
 
-            <div id="active-chat-header" class="hidden bg-zinc-900/95 backdrop-blur-md p-4 flex justify-between items-center border-b border-zinc-800 z-20 flex-shrink-0 cursor-pointer hover:bg-zinc-800 transition shadow-sm" onclick="renameContact()" title="Toca para cambiar nombre">
-                <div class="flex items-center gap-3 md:gap-4">
-                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-2xl p-2 -ml-2 text-zinc-300 hover:text-white">←</button>
-                    <div id="active-pic-container" class="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden shadow-sm">
+            <div id="active-chat-header" class="hidden bg-zinc-900/95 backdrop-blur-md p-3 md:p-4 flex-shrink-0 cursor-pointer hover:bg-zinc-800 transition shadow-sm border-b border-zinc-800 z-20" onclick="renameContact()" title="Toca para cambiar nombre">
+                <div class="flex items-center justify-between md:justify-start w-full gap-0 md:gap-4">
+                    
+                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-2xl p-2 -ml-2 text-zinc-300 hover:text-white flex-shrink-0 w-10">←</button>
+                    
+                    <div class="order-2 md:order-2 flex-1 flex flex-col items-center md:items-start text-center md:text-left overflow-hidden px-2">
+                        <h3 id="chat-title" class="font-bold text-base md:text-lg truncate tracking-tight text-white w-full"></h3>
+                        <span id="chat-status" class="text-[11px] md:text-xs text-green-400 block font-medium w-full"></span>
+                    </div>
+
+                    <div id="active-pic-container" class="order-3 md:order-1 w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0">
                         <img id="active-pic" src="" class="hidden w-full h-full object-cover">
                         <span id="active-pic-placeholder" class="text-zinc-500 text-xl">👤</span>
                     </div>
-                    <div>
-                        <h3 id="chat-title" class="font-bold text-base md:text-lg truncate tracking-tight text-white"></h3>
-                        <span id="chat-status" class="text-[11px] md:text-xs text-green-400 block font-medium"></span>
-                    </div>
+
                 </div>
             </div>
             
@@ -133,6 +135,11 @@
                 </form>
             </div>
         </div>
+    </div>
+
+    <div id="image-modal" class="hidden fixed inset-0 z-[100] bg-black/95 flex justify-center items-center opacity-0 transition-opacity duration-300" onclick="closeImageModal()">
+        <button class="absolute top-4 right-4 text-white text-4xl hover:text-red-500 font-bold z-[101] drop-shadow-lg">&times;</button>
+        <img id="modal-img" src="" class="max-w-full max-h-full object-contain p-4 scale-95 transition-transform duration-300">
     </div>
 
     <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3" preload="auto"></audio>
@@ -246,7 +253,6 @@
                                     "</div>" +
                                 "</div>" + unreadHtml;
                 
-                // EVENTOS: Clic corto para abrir, Pulsación larga para borrar chat
                 let pressTimer;
                 const startPress = (e) => {
                     pressTimer = setTimeout(() => {
@@ -284,6 +290,31 @@
 
         function closeChatMobile() { activeChat = ""; document.body.classList.remove('mobile-chat-active'); }
 
+        // --- FUNCIONES DEL VISOR DE IMÁGENES ---
+        function openImageModal(src) {
+            const modal = document.getElementById('image-modal');
+            const img = document.getElementById('modal-img');
+            img.src = src;
+            modal.classList.remove('hidden');
+            setTimeout(function() {
+                modal.classList.remove('opacity-0');
+                img.classList.remove('scale-95');
+                img.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('image-modal');
+            const img = document.getElementById('modal-img');
+            modal.classList.add('opacity-0');
+            img.classList.remove('scale-100');
+            img.classList.add('scale-95');
+            setTimeout(function() {
+                modal.classList.add('hidden');
+                img.src = "";
+            }, 300);
+        }
+
         function renderMessages() {
             if(!activeChat) return;
             const box = document.getElementById('messages');
@@ -299,7 +330,8 @@
                 if (msg.deleted) {
                     contentHTML = "<span class='msg-deleted'>🚫 Eliminado</span>";
                 } else if (msg.type === 'image') {
-                    contentHTML = "<img src='" + msg.text + "' class='rounded-xl max-w-[200px] sm:max-w-[250px] mt-1 shadow-sm'>";
+                    // AQUÍ ESTÁ LA MAGIA PARA AMPLIAR LA IMAGEN
+                    contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-xl max-w-[200px] sm:max-w-[250px] mt-1 shadow-sm cursor-pointer hover:opacity-80 transition-opacity'>";
                 } else if (msg.type === 'audio') {
                     contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60 mt-1'></audio>";
                 } else {
@@ -312,7 +344,6 @@
                 bubble.className = "msg-bubble max-w-[85%] px-3 py-2 rounded-2xl " + (isMe ? "bg-[#005c4b] text-white rounded-tr-none" : "bg-zinc-800 text-white rounded-tl-none");
                 bubble.innerHTML = contentHTML + "<div class='flex justify-end items-center mt-1'><span class='text-[9px] opacity-70'>" + msg.time + "</span>" + ticks + "</div>";
                 
-                // Pulsación Larga para Borrar Mensaje
                 if (isMe && !msg.deleted) {
                     let pressTimer;
                     const startPress = (e) => {
@@ -347,7 +378,6 @@
             renderMessages(); renderUserList(); 
         });
 
-        // Evento cuando se borra un chat completo
         socket.on('chat_deleted', (target) => {
             allMessages = allMessages.filter(m => !( (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target) ));
             delete contacts[target];
@@ -399,7 +429,6 @@
             } else { mediaRecorder.stop(); isRecording = false; document.getElementById('mic-btn').classList.remove('recording'); }
         }
 
-        // --- ESTO ES LO QUE FALTABA PARA LAS FOTOS ---
         document.getElementById('image-upload').addEventListener('change', function() {
             const file = this.files[0];
             if(file) {
@@ -407,7 +436,7 @@
                 const reader = new FileReader();
                 reader.onload = e => socket.emit('chat message', { text: e.target.result, type: 'image', receiver: activeChat });
                 reader.readAsDataURL(file);
-                this.value = ''; // Limpiar para poder enviar otra igual
+                this.value = ''; 
             }
         });
 
