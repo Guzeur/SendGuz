@@ -36,14 +36,7 @@
             <div class="p-4 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
                 <span class="font-bold text-indigo-400" id="my-profile"></span>
             </div>
-            
-            <div class="overflow-y-auto flex-1">
-                <div onclick="openChat('Global')" id="tab-Global" class="chat-tab active-tab p-4 border-b border-zinc-800 flex items-center gap-3">
-                    <div class="text-2xl">🌍</div>
-                    <span class="font-bold">Sala Global</span>
-                </div>
-                <div id="user-list"></div>
-            </div>
+            <div id="user-list" class="overflow-y-auto flex-1"></div>
         </div>
 
         <div class="flex-1 flex flex-col relative">
@@ -69,6 +62,8 @@
         let myUsername = "";
         let activeChat = "Global";
         let allMessages = [];
+        let onlineUsers = [];
+        let unreadCounts = {}; // Memoria para los mensajes sin leer
 
         const authMsg = document.getElementById('auth-msg');
 
@@ -86,14 +81,12 @@
 
         socket.on('auth_error', (msg) => {
             authMsg.textContent = msg;
-            authMsg.classList.remove('hidden');
+            authMsg.className = 'text-red-400 text-sm mt-4';
         });
 
         socket.on('register_success', (msg) => {
-            authMsg.classList.remove('text-red-400');
-            authMsg.classList.add('text-green-400');
             authMsg.textContent = msg;
-            authMsg.classList.remove('hidden');
+            authMsg.className = 'text-green-400 text-sm mt-4';
         });
 
         socket.on('login_success', (username) => {
@@ -104,29 +97,73 @@
             document.getElementById('chat-screen').classList.add('flex');
         });
 
-        function openChat(targetUser) {
-            activeChat = targetUser;
-            document.getElementById('chat-title').textContent = targetUser === 'Global' ? '🌍 Sala Global' : '🔒 Chat Privado con ' + targetUser;
+        // --- MAGIA: GENERAR LISTA CON VISTAS PREVIAS Y NOTIFICACIONES ---
+        function renderUserList() {
+            const list = document.getElementById('user-list');
+            let html = "";
             
-            document.querySelectorAll('.chat-tab').forEach(el => el.classList.remove('active-tab'));
-            const tab = document.getElementById('tab-' + targetUser);
-            if(tab) tab.classList.add('active-tab');
+            // Unir la Sala Global con los usuarios conectados (excluyéndome a mí)
+            const chats = ['Global', ...onlineUsers.filter(n => n !== myUsername)];
+            
+            chats.forEach(target => {
+                // 1. Filtrar los mensajes de este chat específico
+                const chatMsgs = allMessages.filter(m => {
+                    if (target === 'Global') return m.receiver === 'Global';
+                    return (m.sender === target && m.receiver === myUsername) || 
+                           (m.sender === myUsername && m.receiver === target);
+                });
+                
+                // 2. Obtener el último mensaje para la vista previa
+                const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
+                
+                let preview = "Sin mensajes...";
+                let timeText = "";
+                if (lastMsg) {
+                    preview = lastMsg.type === 'image' ? '📷 Imagen' : lastMsg.text;
+                    if (preview.length > 20) preview = preview.substring(0, 20) + '...';
+                    if (lastMsg.sender === myUsername) preview = "Tú: " + preview;
+                    timeText = lastMsg.time || "";
+                }
+                
+                // 3. Obtener notificaciones y diseño
+                const unread = unreadCounts[target] || 0;
+                const activeClass = activeChat === target ? 'active-tab' : '';
+                const avatar = target === 'Global' 
+                    ? "<div class='text-2xl w-10 h-10 flex items-center justify-center bg-zinc-800 rounded-full flex-shrink-0'>🌍</div>" 
+                    : "<img src='https://api.dicebear.com/7.x/bottts/svg?seed=" + target + "' class='w-10 h-10 rounded-full bg-zinc-800 flex-shrink-0' />";
+                
+                const displayName = target === 'Global' ? 'Sala Global' : target;
 
-            renderMessages();
+                // 4. Construir el HTML de la pestaña
+                html += "<div onclick=\"openChat('" + target + "')\" class=\"chat-tab p-4 border-b border-zinc-800 flex items-center justify-between " + activeClass + "\">" +
+                            "<div class=\"flex items-center gap-3 overflow-hidden w-3/4\">" +
+                                avatar +
+                                "<div class=\"truncate\">" +
+                                    "<span class=\"font-medium text-zinc-300 block truncate\">" + displayName + "</span>" +
+                                    "<span class=\"text-xs text-zinc-500 block truncate\">" + preview + "</span>" +
+                                "</div>" +
+                            "</div>" +
+                            "<div class=\"flex flex-col items-end flex-shrink-0\">" +
+                                "<span class=\"text-[10px] text-zinc-600 mb-1\">" + timeText + "</span>" +
+                                (unread > 0 ? "<div class=\"bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full\">" + unread + "</div>" : "") +
+                            "</div>" +
+                        "</div>";
+            });
+            list.innerHTML = html;
         }
 
         socket.on('user list', (names) => {
-            const list = document.getElementById('user-list');
-            list.innerHTML = names.filter(n => n !== myUsername).map(name => 
-                "<div onclick=\"openChat('" + name + "')\" id=\"tab-" + name + "\" class=\"chat-tab p-4 border-b border-zinc-800 flex items-center gap-3\">" +
-                    "<img src=\"https://api.dicebear.com/7.x/bottts/svg?seed=" + name + "\" class=\"w-10 h-10 rounded-full bg-zinc-800\" />" +
-                    "<span class=\"font-medium text-zinc-300\">" + name + "</span>" +
-                "</div>"
-            ).join('');
-            
-            const currentTab = document.getElementById('tab-' + activeChat);
-            if(currentTab) currentTab.classList.add('active-tab');
+            onlineUsers = names;
+            renderUserList();
         });
+
+        function openChat(targetUser) {
+            activeChat = targetUser;
+            unreadCounts[targetUser] = 0; // Poner notificaciones en cero al abrir
+            document.getElementById('chat-title').textContent = targetUser === 'Global' ? '🌍 Sala Global' : '🔒 Chat Privado con ' + targetUser;
+            renderMessages();
+            renderUserList(); // Actualizar lista para borrar la bolita roja
+        }
 
         function renderMessages() {
             const box = document.getElementById('messages');
@@ -167,14 +204,25 @@
         socket.on('load_history', (msgs) => {
             allMessages = msgs;
             renderMessages();
+            renderUserList(); // Cargar vistas previas iniciales
         });
 
         socket.on('chat message', (msg) => {
             allMessages.push(msg);
-            if (msg.sender !== myUsername && (msg.receiver === 'Global' || msg.receiver === myUsername)) {
-                document.getElementById('notif-sound').play().catch(()=>{});
+            
+            // Si el mensaje no lo envié yo, verificar si sumar notificación
+            if (msg.sender !== myUsername) {
+                let chatName = msg.receiver === 'Global' ? 'Global' : msg.sender;
+                
+                // Si el chat donde llegó el mensaje NO es el que tengo abierto actualmente...
+                if (activeChat !== chatName) {
+                    unreadCounts[chatName] = (unreadCounts[chatName] || 0) + 1; // Sumar 1 a la bolita
+                    document.getElementById('notif-sound').play().catch(()=>{});
+                }
             }
+            
             renderMessages();
+            renderUserList(); // Actualizar bolitas y vistas previas en tiempo real
         });
 
         document.getElementById('form').addEventListener('submit', (e) => {
