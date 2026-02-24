@@ -98,7 +98,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // --- NUEVO: BORRAR CHAT COMPLETO ---
   socket.on('delete_chat', async (targetUser) => {
     if (!socket.username) return;
     await Message.deleteMany({
@@ -117,6 +116,42 @@ io.on('connection', (socket) => {
     if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
+  // --- NUEVO: SISTEMA DE VIDEOLLAMADAS (WEBRTC SIGNALING) ---
+  socket.on('call_user', (data) => {
+    const receiverSocket = connectedUsers[data.userToCall];
+    if(receiverSocket) io.to(receiverSocket).emit('incoming_call', { from: socket.username });
+  });
+  
+  socket.on('accept_call', (data) => {
+    const callerSocket = connectedUsers[data.to];
+    if(callerSocket) io.to(callerSocket).emit('call_accepted', { from: socket.username });
+  });
+
+  socket.on('reject_call', (data) => {
+    const callerSocket = connectedUsers[data.to];
+    if(callerSocket) io.to(callerSocket).emit('call_rejected', { from: socket.username });
+  });
+
+  socket.on('end_call', (data) => {
+    const otherSocket = connectedUsers[data.to];
+    if(otherSocket) io.to(otherSocket).emit('call_ended');
+  });
+
+  socket.on('webrtc_offer', (data) => {
+    const receiverSocket = connectedUsers[data.to];
+    if(receiverSocket) io.to(receiverSocket).emit('webrtc_offer', { from: socket.username, sdp: data.sdp });
+  });
+
+  socket.on('webrtc_answer', (data) => {
+    const receiverSocket = connectedUsers[data.to];
+    if(receiverSocket) io.to(receiverSocket).emit('webrtc_answer', { from: socket.username, sdp: data.sdp });
+  });
+
+  socket.on('webrtc_ice_candidate', (data) => {
+    const receiverSocket = connectedUsers[data.to];
+    if(receiverSocket) io.to(receiverSocket).emit('webrtc_ice_candidate', { from: socket.username, candidate: data.candidate });
+  });
+
   socket.on('disconnect', () => {
     if (socket.username) {
       delete connectedUsers[socket.username];
@@ -126,4 +161,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V5.1 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V6 corriendo en puerto " + PORT));
