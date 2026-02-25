@@ -19,7 +19,7 @@ app.get('/icon.svg', (req, res) => {
 app.get('/manifest.json', (req, res) => {
   res.json({
     name: "SendGuz", short_name: "SendGuz", start_url: "/", display: "standalone",
-    background_color: "#09090b", theme_color: "#4f46e5",
+    background_color: "#000000", theme_color: "#0a84ff",
     icons: [{ src: "/icon.svg", sizes: "192x192 512x512", type: "image/svg+xml", purpose: "any maskable" }]
   });
 });
@@ -53,10 +53,8 @@ if (mongoURI) mongoose.connect(mongoURI).then(() => console.log('✅ BD Conectad
 
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true }, phone: { type: String, unique: true },
-  password: String, profilePic: { type: String, default: '' },
-  pushSubscription: { type: Object, default: null } 
+  password: String, profilePic: { type: String, default: '' }, pushSubscription: { type: Object, default: null } 
 });
-// OPTIMIZACIÓN: Índices para búsquedas ultrarrápidas
 userSchema.index({ username: 1 });
 
 const messageSchema = new mongoose.Schema({
@@ -65,7 +63,6 @@ const messageSchema = new mongoose.Schema({
   status: { type: String, default: 'sent' }, deleted: { type: Boolean, default: false },
   viewOnce: { type: Boolean, default: false }, viewed: { type: Boolean, default: false }
 });
-// OPTIMIZACIÓN: Índices para cargar chats rapidísimo
 messageSchema.index({ sender: 1, receiver: 1 });
 messageSchema.index({ timestamp: -1 });
 
@@ -83,8 +80,7 @@ io.on('connection', (socket) => {
   socket.on('register', async (data) => {
     if (!mongoURI) return socket.emit('auth_error', 'BD no conectada');
     try {
-      const existU = await User.findOne({ username: data.username });
-      const existP = await User.findOne({ phone: data.phone });
+      const existU = await User.findOne({ username: data.username }); const existP = await User.findOne({ phone: data.phone });
       if (existU || existP) return socket.emit('auth_error', 'Usuario o Teléfono ya existe.');
       const newUser = new User({ username: data.username, phone: data.phone, password: data.password });
       await newUser.save(); socket.emit('register_success', '¡Cuenta creada con éxito!');
@@ -95,15 +91,10 @@ io.on('connection', (socket) => {
     const user = await User.findOne({ username: data.username, password: data.password });
     if (!user) return socket.emit('auth_error', 'Datos incorrectos.');
     
-    socket.username = user.username; 
-    connectedUsers[user.username] = socket.id;
-    userStatus[user.username] = 'active'; 
+    socket.username = user.username; connectedUsers[user.username] = socket.id; userStatus[user.username] = 'active'; 
     
-    // OPTIMIZACIÓN: Solo descargar los últimos 200 mensajes para evitar que la app se trabe
-    let myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] })
-                              .sort({ timestamp: -1 })
-                              .limit(200);
-    myMsgs = myMsgs.reverse(); // Volver a ponerlos en orden cronológico
+    let myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] }).sort({ timestamp: -1 }).limit(200);
+    myMsgs = myMsgs.reverse(); 
 
     const contactsSet = new Set();
     myMsgs.forEach(m => { if (m.sender !== user.username) contactsSet.add(m.sender); if (m.receiver !== user.username) contactsSet.add(m.receiver); });
@@ -128,13 +119,15 @@ io.on('connection', (socket) => {
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
     
+    // 1. CREAMOS EL MENSAJE EN MEMORIA RAM (Instantáneo)
     const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow, viewOnce: data.viewOnce || false });
-    const savedMsg = await newMsg.save(); 
-    socket.emit('chat message', savedMsg); 
+    
+    // 2. LO EMITIMOS AL INSTANTE (Sin esperar a que la Base de Datos responda)
+    socket.emit('chat message', newMsg); 
 
     const receiverSocket = connectedUsers[data.receiver];
     if (receiverSocket && userStatus[data.receiver] === 'active') {
-        io.to(receiverSocket).emit('chat message', savedMsg); 
+        io.to(receiverSocket).emit('chat message', newMsg); 
     } 
     
     if (!receiverSocket || userStatus[data.receiver] !== 'active') {
@@ -146,6 +139,9 @@ io.on('connection', (socket) => {
             webpush.sendNotification(receiverUser.pushSubscription, payload).catch(e => console.log('Error PUSH:', e));
         }
     }
+
+    // 3. LO GUARDAMOS EN LA BASE DE DATOS EN SEGUNDO PLANO (Fire and Forget)
+    newMsg.save().catch(err => console.error("Error guardando msg:", err));
   });
 
   socket.on('mark_read', async (senderName) => {
@@ -175,6 +171,7 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
+  // Llamadas
   socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username, isVideo: data.isVideo }); });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
@@ -185,12 +182,11 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (socket.username) { 
-        delete connectedUsers[socket.username]; 
-        userStatus[socket.username] = 'background';
-        io.emit('online_status', Object.keys(connectedUsers)); 
+        delete connectedUsers[socket.username]; userStatus[socket.username] = 'background'; io.emit('online_status', Object.keys(connectedUsers)); 
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V17 (Ultra Rápido) corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V18 corriendo en puerto " + PORT));
+
