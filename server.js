@@ -119,15 +119,27 @@ io.on('connection', (socket) => {
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
     
-    // 1. CREAMOS EL MENSAJE EN MEMORIA RAM (Instantáneo)
-    const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow, viewOnce: data.viewOnce || false });
+    // --- LA SOLUCIÓN AL CORTOCIRCUITO ---
+    // Creamos un objeto JSON puro (ligero y seguro) en lugar de un objeto pesado de Base de Datos
+    const plainMsg = {
+        _id: new mongoose.Types.ObjectId(), // Generamos el ID matemático aquí mismo
+        sender: socket.username,
+        receiver: data.receiver,
+        text: data.text,
+        type: data.type || 'text',
+        time: timeNow,
+        viewOnce: data.viewOnce || false,
+        viewed: false,
+        deleted: false,
+        status: 'sent'
+    };
     
-    // 2. LO EMITIMOS AL INSTANTE (Sin esperar a que la Base de Datos responda)
-    socket.emit('chat message', newMsg); 
+    // Lo disparamos al instante sin colgar el servidor
+    socket.emit('chat message', plainMsg); 
 
     const receiverSocket = connectedUsers[data.receiver];
     if (receiverSocket && userStatus[data.receiver] === 'active') {
-        io.to(receiverSocket).emit('chat message', newMsg); 
+        io.to(receiverSocket).emit('chat message', plainMsg); 
     } 
     
     if (!receiverSocket || userStatus[data.receiver] !== 'active') {
@@ -140,8 +152,10 @@ io.on('connection', (socket) => {
         }
     }
 
-    // 3. LO GUARDAMOS EN LA BASE DE DATOS EN SEGUNDO PLANO (Fire and Forget)
-    newMsg.save().catch(err => console.error("Error guardando msg:", err));
+    // Guardamos en la base de datos tranquilamente de fondo
+    const newMsg = new Message(plainMsg);
+    newMsg.isNew = true;
+    newMsg.save().catch(err => console.error("Error BD:", err));
   });
 
   socket.on('mark_read', async (senderName) => {
@@ -171,7 +185,6 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
-  // Llamadas
   socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username, isVideo: data.isVideo }); });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
@@ -188,4 +201,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V18 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V19 (Ultra Estable) corriendo en puerto " + PORT));
