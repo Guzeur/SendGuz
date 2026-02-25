@@ -37,8 +37,6 @@
             .mobile-chat-active #chat-area { display: flex !important; }
         }
         #loading-screen { transition: opacity 0.2s ease; }
-        
-        /* Línea separadora de la lista de chats en iOS */
         .ios-divider { border-bottom: 0.5px solid #2c2c2e; margin-left: 76px; }
     </style>
 </head>
@@ -102,15 +100,12 @@
             </div>
 
             <div id="active-chat-header" class="hidden bg-black/80 backdrop-blur-xl p-3 flex-shrink-0 border-b border-[#2c2c2e] z-20 flex justify-between items-center h-[70px]">
-                
-                <div class="flex items-center gap-1 cursor-pointer overflow-hidden flex-1" onclick="renameContact()">
+                <div class="flex items-center gap-1 cursor-pointer overflow-hidden flex-1" onclick="renameContact()" title="Toca para cambiar nombre">
                     <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-4xl p-2 text-[#0a84ff] font-light flex-shrink-0 leading-none -mt-1">‹</button>
-                    
                     <div id="active-pic-container" onclick="event.stopPropagation(); expandProfilePic()" class="w-9 h-9 rounded-full bg-[#3a3a3c] flex items-center justify-center overflow-hidden flex-shrink-0 ml-1">
                         <img id="active-pic" src="" class="hidden w-full h-full object-cover">
                         <span id="active-pic-placeholder" class="text-white text-sm">👤</span>
                     </div>
-
                     <div class="flex flex-col overflow-hidden px-2 text-left">
                         <h3 id="chat-title" class="font-semibold text-[17px] text-white truncate w-full leading-tight"></h3>
                         <span id="chat-status" class="text-[12px] text-[#8e8e93] block font-normal w-full truncate leading-tight"></span>
@@ -142,6 +137,7 @@
                     <button type="button" onclick="toggleEmojis()" class="text-[#8e8e93] hover:text-[#0a84ff] transition-colors p-1">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>
                     </button>
+                    
                     <div class="flex-1 bg-[#1c1c1e] border border-[#3a3a3c] rounded-full flex items-center pr-1 pl-4 h-[38px]">
                         <input id="input" autocomplete="off" placeholder="iMessage" class="flex-1 bg-transparent text-[16px] text-white outline-none placeholder-[#8e8e93]">
                         <button type="button" id="mic-btn" onclick="toggleAudio()" class="w-7 h-7 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors">
@@ -157,7 +153,6 @@
     </div>
 
     <div id="video-call-screen" class="hidden fixed inset-0 z-[200] bg-black flex flex-col"><div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden"><div id="audio-call-avatar" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-[#1c1c1e] z-0"><div class="w-32 h-32 rounded-full bg-[#3a3a3c] flex items-center justify-center text-6xl shadow-2xl mb-4">👤</div></div><video id="remote-video" class="w-full h-full object-cover z-10" autoplay playsinline></video><video id="local-video" class="absolute bottom-6 right-6 w-28 md:w-48 rounded-xl shadow-2xl border-2 border-[#3a3a3c] bg-[#1c1c1e] object-cover z-20" autoplay playsinline muted></video><div id="call-status-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30"><div class="w-20 h-20 rounded-full bg-[#0a84ff] animate-pulse mb-4 flex items-center justify-center text-3xl" id="call-icon">📞</div><h2 id="call-status-text" class="text-xl font-medium text-white text-center px-4">Llamando...</h2></div></div><div class="h-[100px] bg-[#1c1c1e] flex items-center justify-center gap-10 pb-4 relative z-40"><button id="accept-call-btn" onclick="acceptCall()" class="hidden w-[60px] h-[60px] bg-[#34c759] rounded-full text-white text-2xl flex items-center justify-center shadow-lg">📞</button><button onclick="endCall()" class="w-[60px] h-[60px] bg-[#ff3b30] rounded-full text-white text-2xl flex items-center justify-center shadow-lg">☎️</button></div></div>
-    
     <div id="image-modal" class="hidden fixed inset-0 z-[100] bg-black/95 flex justify-center items-center opacity-0 transition-opacity duration-200" onclick="closeImageModal()"><button class="absolute top-6 right-6 text-[#8e8e93] text-4xl hover:text-white font-light z-[101]">&times;</button><img id="modal-img" src="" class="max-w-full max-h-full object-contain p-4 scale-95 transition-transform duration-200"></div>
 
     <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" preload="auto"></audio>
@@ -174,13 +169,29 @@
         let aliases = JSON.parse(localStorage.getItem('sg_aliases')) || {};
         function getDisplayName(username) { return aliases[username] || username; }
 
+        // --- LA SOLUCIÓN AL "QUOTA EXCEEDED" (Crash del navegador) ---
+        function saveCacheSafe() {
+            try { 
+                // Solo guardar los últimos 50 mensajes en RAM para que el teléfono no colapse de memoria
+                const cacheMsgs = allMessages.slice(-50);
+                localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(cacheMsgs)); 
+                localStorage.setItem('sg_contacts_' + myUsername, JSON.stringify(contacts));
+            } catch(e) { console.warn("Memoria local al límite, omitiendo guardado."); }
+        }
+
+        function loadFromCache() {
+            const cachedUser = localStorage.getItem('sg_user');
+            if (cachedUser) {
+                const cachedContacts = localStorage.getItem('sg_contacts_' + cachedUser);
+                const cachedMsgs = localStorage.getItem('sg_msgs_' + cachedUser);
+                if (cachedContacts) contacts = JSON.parse(cachedContacts);
+                if (cachedMsgs) { allMessages = JSON.parse(cachedMsgs); calculateUnread(); renderUserList(); }
+            }
+        }
+
         function calculateUnread() {
             unreadCounts = {};
-            allMessages.forEach(function(m) {
-                if (m.receiver === myUsername && m.status === 'sent') { 
-                    unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; 
-                }
-            });
+            allMessages.forEach(function(m) { if (m.receiver === myUsername && m.status === 'sent') { unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; } });
         }
 
         document.addEventListener("visibilitychange", function() {
@@ -194,12 +205,7 @@
 
         window.onload = function() {
             const savedUser = localStorage.getItem('sg_user'); const savedPass = localStorage.getItem('sg_pass');
-            if (savedUser && savedPass) { 
-                myUsername = savedUser;
-                const cachedMsgs = localStorage.getItem('sg_msgs_' + savedUser);
-                if(cachedMsgs) { allMessages = JSON.parse(cachedMsgs); calculateUnread(); renderUserList(); }
-                socket.emit('login', {username: savedUser, password: savedPass}); 
-            } 
+            if (savedUser && savedPass) { myUsername = savedUser; loadFromCache(); socket.emit('login', {username: savedUser, password: savedPass}); } 
             else { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
         };
 
@@ -208,6 +214,7 @@
             if (savedUser && savedPass && myUsername !== "") { socket.emit('login', {username: savedUser, password: savedPass}); }
         });
 
+        // IMPORTANTE: Al cerrar sesión limpiamos la memoria corrupta
         function logout() { if(confirm("¿Cerrar sesión?")) { localStorage.clear(); location.reload(); } }
         function requestPushPermission() { if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') { Notification.requestPermission().then(function(permission) { if (permission === 'granted') setupPushNotifications(); }); } }
 
@@ -230,14 +237,8 @@
         async function setupPushNotifications() { if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') { try { const register = await navigator.serviceWorker.register('/sw.js?v=6'); const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) }); socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription))); } catch(e) {} } }
 
         socket.on('load_initial_data', function(data) { 
-            allMessages = data.messages; 
-            data.contacts.forEach(function(c) { contacts[c.username] = c; }); 
-            typingStatus = {}; 
-            
-            localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(allMessages));
-            
-            calculateUnread();
-            renderUserList(); 
+            allMessages = data.messages; data.contacts.forEach(function(c) { contacts[c.username] = c; }); typingStatus = {}; 
+            saveCacheSafe(); calculateUnread(); renderUserList(); 
             if(activeChat) { socket.emit('mark_read', activeChat); unreadCounts[activeChat] = 0; renderMessages(); renderUserList(); }
         });
 
@@ -245,7 +246,6 @@
         function updateAvatarDisplay(imgId, placeholderId, picData) { const img = document.getElementById(imgId); const ph = document.getElementById(placeholderId); if(picData && picData !== "") { img.src = picData; img.classList.remove('hidden'); ph.classList.add('hidden'); } else { img.classList.add('hidden'); ph.classList.remove('hidden'); } }
         function addContact() { requestPushPermission(); const val = prompt("Nombre de usuario o Teléfono:"); if(val) socket.emit('search_contact', val.trim()); }
         socket.on('contact_found', function(user) { contacts[user.username] = user; openChat(user.username); });
-
         function expandProfilePic() { if(activeChat && contacts[activeChat] && contacts[activeChat].profilePic) { openImageModal(contacts[activeChat].profilePic); } }
 
         function renderUserList() {
@@ -261,16 +261,11 @@
                 const unread = unreadCounts[target] || 0; const displayName = getDisplayName(target); const pic = contacts[target].profilePic;
                 const avatarHtml = pic ? "<img src='" + pic + "' class='w-[46px] h-[46px] rounded-full object-cover'>" : "<div class='w-[46px] h-[46px] rounded-full bg-[#3a3a3c] flex items-center justify-center text-xl'>👤</div>";
                 
-                // LA BOLITA ROJA/AZUL QUE CUENTA MENSAJES 
-                let unreadHtml = unread > 0 ? "<div class='bg-[#0a84ff] text-white text-[11px] font-bold min-w-[20px] h-[20px] px-1.5 flex items-center justify-center rounded-full flex-shrink-0 ml-2 shadow-sm'>" + unread + "</div>" : "";
+                let unreadHtml = unread > 0 ? "<div class='bg-[#0a84ff] text-white text-[12px] font-semibold w-5 h-5 flex items-center justify-center rounded-full'>" + unread + "</div>" : "";
                 let timeHtml = lastMsg ? "<span class='text-[13px] text-[#8e8e93]'>" + lastMsg.time + "</span>" : "";
 
                 const div = document.createElement('div'); div.className = "chat-tab flex items-center pl-4 py-2 " + (activeChat === target ? "active-tab" : ""); 
-                div.innerHTML = "<div class='relative flex-shrink-0'>" + avatarHtml + isOnline + "</div>" +
-                                "<div class='flex-1 ml-3 ios-divider py-2 pr-4'>" +
-                                  "<div class='flex justify-between items-center'><span class='font-semibold text-[17px] text-white'>" + displayName + "</span>" + timeHtml + "</div>" +
-                                  "<div class='flex justify-between items-center mt-0.5'><span class='text-[15px] text-[#8e8e93] block truncate pr-2'>" + preview + "</span>" + unreadHtml + "</div>" +
-                                "</div>";
+                div.innerHTML = "<div class='relative flex-shrink-0'>" + avatarHtml + isOnline + "</div><div class='flex-1 ml-3 ios-divider py-2 pr-4'><div class='flex justify-between items-center'><span class='font-semibold text-[17px] text-white'>" + displayName + "</span>" + timeHtml + "</div><div class='flex justify-between items-center mt-0.5'><span class='text-[15px] text-[#8e8e93] block truncate pr-2'>" + preview + "</span>" + unreadHtml + "</div></div>";
                 
                 let pressTimer; const startPress = function(e) { pressTimer = setTimeout(function() { if(confirm("¿Eliminar chat con " + displayName + "?")) socket.emit('delete_chat', target); }, 800); }; const endPress = function() { clearTimeout(pressTimer); };
                 div.onclick = function() { openChat(target); }; div.addEventListener('mousedown', startPress); div.addEventListener('touchstart', startPress, {passive: true}); div.addEventListener('mouseup', endPress); div.addEventListener('mouseleave', endPress); div.addEventListener('touchend', endPress); div.addEventListener('touchcancel', endPress); div.oncontextmenu = function(e) { e.preventDefault(); return false; };
@@ -282,7 +277,7 @@
         function closeChatMobile() { activeChat = ""; document.body.classList.remove('mobile-chat-active'); renderUserList(); }
         function toggleViewOnce() { isViewOnce = !isViewOnce; const btn = document.getElementById('view-once-btn'); if(isViewOnce) { btn.classList.remove('text-zinc-500'); btn.classList.add('text-[#0a84ff]', 'font-bold'); } else { btn.classList.add('text-zinc-500'); btn.classList.remove('text-[#0a84ff]', 'font-bold'); } }
         function viewOnceImage(id, src) { openImageModal(src); socket.emit('mark_viewed', id); const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); } }
-        socket.on('message_viewed', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); renderUserList(); } });
+        socket.on('message_viewed', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); saveCacheSafe(); renderUserList(); } });
         function openImageModal(src) { const modal = document.getElementById('image-modal'); const img = document.getElementById('modal-img'); img.src = src; modal.classList.remove('hidden'); setTimeout(function() { modal.classList.remove('opacity-0'); img.classList.remove('scale-95'); img.classList.add('scale-100'); }, 10); }
         function closeImageModal() { const modal = document.getElementById('image-modal'); const img = document.getElementById('modal-img'); modal.classList.add('opacity-0'); img.classList.remove('scale-100'); img.classList.add('scale-95'); setTimeout(function() { modal.classList.add('hidden'); img.src = ""; }, 200); }
 
@@ -313,9 +308,8 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- SISTEMA DE INYECCIÓN SIN LAG ---
         socket.on('chat message', function(msg) {
-            allMessages.push(msg); localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(allMessages));
+            allMessages.push(msg); saveCacheSafe();
             typingStatus[msg.sender] = false;
             
             if (activeChat === msg.sender || (msg.sender === myUsername && msg.receiver === activeChat)) {
@@ -342,10 +336,10 @@
             renderUserList(); 
         });
 
-        socket.on('chat_deleted', function(target) { allMessages = allMessages.filter(function(m) { return !( (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target) ); }); delete contacts[target]; localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); if(activeChat === target) { closeChatMobile(); document.getElementById('empty-chat').classList.remove('hidden'); document.getElementById('active-chat-header').classList.add('hidden'); document.getElementById('form').classList.add('hidden'); } renderUserList(); });
+        socket.on('chat_deleted', function(target) { allMessages = allMessages.filter(function(m) { return !( (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target) ); }); delete contacts[target]; saveCacheSafe(); if(activeChat === target) { closeChatMobile(); document.getElementById('empty-chat').classList.remove('hidden'); document.getElementById('active-chat-header').classList.add('hidden'); document.getElementById('form').classList.add('hidden'); } renderUserList(); });
         socket.on('online_status', function(users) { onlineUsers = users; renderUserList(); });
-        socket.on('messages_read', function(reader) { allMessages.forEach(function(m) { if (m.sender === myUsername && m.receiver === reader) m.status = 'read'; }); localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); if(activeChat === reader) renderMessages(); });
-        socket.on('message_deleted', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m){ m.deleted = true; localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); if(activeChat === m.receiver || activeChat === m.sender) renderMessages(); renderUserList(); } });
+        socket.on('messages_read', function(reader) { allMessages.forEach(function(m) { if (m.sender === myUsername && m.receiver === reader) m.status = 'read'; }); saveCacheSafe(); if(activeChat === reader) renderMessages(); });
+        socket.on('message_deleted', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m){ m.deleted = true; saveCacheSafe(); if(activeChat === m.receiver || activeChat === m.sender) renderMessages(); renderUserList(); } });
 
         const input = document.getElementById('input'); input.addEventListener('input', function() { const hasText = input.value.trim().length > 0; document.getElementById('send-btn').classList.toggle('hidden', !hasText); document.getElementById('mic-btn').classList.toggle('hidden', hasText); socket.emit('typing', { isTyping: hasText, receiver: activeChat }); });
         document.getElementById('form').addEventListener('submit', function(e) { e.preventDefault(); document.getElementById('emoji-picker').classList.add('hidden'); if (input.value.trim()) { socket.emit('chat message', { text: input.value, type: 'text', receiver: activeChat }); input.value = ''; socket.emit('typing', { isTyping: false, receiver: activeChat }); document.getElementById('send-btn').classList.add('hidden'); document.getElementById('mic-btn').classList.remove('hidden'); } });
