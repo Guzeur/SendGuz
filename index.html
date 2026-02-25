@@ -9,7 +9,6 @@
     <link rel="apple-touch-icon" href="/icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* ESTILO NATIVO DE APPLE / iMESSAGE */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: #ffffff; overscroll-behavior-y: none; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -20,17 +19,16 @@
         .chat-tab:active { background: #2c2c2e; }
         .active-tab { background: #1c1c1e; }
         
-        /* Burbujas tipo iMessage */
         .msg-bubble { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform 0.1s; }
         .msg-bubble:active { transform: scale(0.97); filter: brightness(0.9); }
         .bubble-me { background-color: #0a84ff; color: white; border-radius: 20px; border-bottom-right-radius: 4px; }
         .bubble-them { background-color: #262628; color: white; border-radius: 20px; border-bottom-left-radius: 4px; }
+        .msg-deleted { font-style: italic; color: #a1a1aa; display: flex; align-items: center; gap: 5px; }
         
-        /* Fondo negro puro */
         .chat-bg { background-color: #000000; }
         
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 69, 58, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0); } }
-        .recording { animation: pulse-red 1.5s infinite; background-color: #ff453a !important; color: white !important; }
+        .recording { animation: pulse-red 1.5s infinite; color: #ff453a !important; }
         
         @media (max-width: 768px) {
             #sidebar { width: 100% !important; display: flex !important; height: 100vh !important; border: none; }
@@ -40,7 +38,7 @@
         }
         #loading-screen { transition: opacity 0.2s ease; }
         
-        /* Líneas separadoras estilo iOS */
+        /* Línea separadora de la lista de chats en iOS */
         .ios-divider { border-bottom: 0.5px solid #2c2c2e; margin-left: 76px; }
     </style>
 </head>
@@ -100,7 +98,7 @@
         <div id="chat-area" class="flex-1 flex flex-col relative chat-bg h-full">
             <div id="empty-chat" class="absolute inset-0 flex flex-col items-center justify-center text-[#8e8e93] z-10 bg-black">
                 <div class="text-7xl mb-4 opacity-20 text-white">🐺</div>
-                <h2 class="text-lg font-medium">SendGuz iMessage</h2>
+                <h2 class="text-lg font-medium">SendGuz</h2>
             </div>
 
             <div id="active-chat-header" class="hidden bg-black/80 backdrop-blur-xl p-3 flex-shrink-0 border-b border-[#2c2c2e] z-20 flex justify-between items-center h-[70px]">
@@ -120,11 +118,11 @@
                 </div>
                 
                 <div class="flex items-center gap-4 px-2 flex-shrink-0 text-[#0a84ff]">
-                    <button onclick="startCall(false)" class="hover:opacity-70 transition-opacity" title="Llamada">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z" clip-rule="evenodd" /></svg>
+                    <button onclick="startCall(false)" class="hover:opacity-70 transition-opacity p-1" title="Llamada">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z" clip-rule="evenodd" /></svg>
                     </button>
-                    <button onclick="startCall(true)" class="hover:opacity-70 transition-opacity" title="Video">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7"><path d="M4.5 4.5a3 3 0 00-3 3v9a3 3 0 003 3h8.25a3 3 0 003-3v-9a3 3 0 00-3-3H4.5zM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06z" /></svg>
+                    <button onclick="startCall(true)" class="hover:opacity-70 transition-opacity p-1" title="Video">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M4.5 4.5a3 3 0 00-3 3v9a3 3 0 003 3h8.25a3 3 0 003-3v-9a3 3 0 00-3-3H4.5zM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06z" /></svg>
                     </button>
                 </div>
             </div>
@@ -141,18 +139,14 @@
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                     </button>
                     <input type="file" id="image-upload" accept="image/*" class="hidden">
-                    
                     <button type="button" onclick="toggleEmojis()" class="text-[#8e8e93] hover:text-[#0a84ff] transition-colors p-1">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>
                     </button>
-                    
                     <div class="flex-1 bg-[#1c1c1e] border border-[#3a3a3c] rounded-full flex items-center pr-1 pl-4 h-[38px]">
                         <input id="input" autocomplete="off" placeholder="iMessage" class="flex-1 bg-transparent text-[16px] text-white outline-none placeholder-[#8e8e93]">
-                        
                         <button type="button" id="mic-btn" onclick="toggleAudio()" class="w-7 h-7 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" /><path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" /></svg>
                         </button>
-                        
                         <button type="submit" id="send-btn" class="hidden w-[28px] h-[28px] bg-[#0a84ff] rounded-full flex items-center justify-center text-white shadow-sm mr-[2px]">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
                         </button>
@@ -174,32 +168,18 @@
         let allMessages = [], contacts = {}, unreadCounts = {}, typingStatus = {}, onlineUsers = [];
         let mediaRecorder, audioChunks = [], isRecording = false; let isViewOnce = false;
         let localStream, peerConnection, currentCallUser = ""; let currentCallIsVideo = true; 
-        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         const publicVapidKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB22-xO3U-2XMDn-R_cewgKMc';
 
         let aliases = JSON.parse(localStorage.getItem('sg_aliases')) || {};
         function getDisplayName(username) { return aliases[username] || username; }
 
-        // --- MAGIA ANTI-LAG: MEMORIA CACHÉ LOCAL ---
-        // Esto permite que la app muestre los mensajes de inmediato al abrirse
-        function loadFromCache() {
-            const cachedUser = localStorage.getItem('sg_user');
-            if (cachedUser) {
-                const cachedContacts = localStorage.getItem('sg_contacts_' + cachedUser);
-                const cachedMsgs = localStorage.getItem('sg_msgs_' + cachedUser);
-                if (cachedContacts) contacts = JSON.parse(cachedContacts);
-                if (cachedMsgs) {
-                    allMessages = JSON.parse(cachedMsgs);
-                    calculateUnread();
-                    renderUserList();
-                }
-            }
-        }
-
         function calculateUnread() {
             unreadCounts = {};
             allMessages.forEach(function(m) {
-                if (m.receiver === myUsername && m.status === 'sent') { unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; }
+                if (m.receiver === myUsername && m.status === 'sent') { 
+                    unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; 
+                }
             });
         }
 
@@ -207,8 +187,7 @@
             if (document.visibilityState === "visible") {
                 if(socket.disconnected) socket.connect();
                 socket.emit('status', 'active'); 
-                const savedUser = localStorage.getItem('sg_user');
-                const savedPass = localStorage.getItem('sg_pass');
+                const savedUser = localStorage.getItem('sg_user'); const savedPass = localStorage.getItem('sg_pass');
                 if (savedUser && savedPass) { socket.emit('login', {username: savedUser, password: savedPass}); }
             } else { socket.emit('status', 'background'); }
         });
@@ -217,8 +196,9 @@
             const savedUser = localStorage.getItem('sg_user'); const savedPass = localStorage.getItem('sg_pass');
             if (savedUser && savedPass) { 
                 myUsername = savedUser;
-                loadFromCache(); // Cargar interfaz al instante
-                socket.emit('login', {username: savedUser, password: savedPass}); // Sincronizar en silencio
+                const cachedMsgs = localStorage.getItem('sg_msgs_' + savedUser);
+                if(cachedMsgs) { allMessages = JSON.parse(cachedMsgs); calculateUnread(); renderUserList(); }
+                socket.emit('login', {username: savedUser, password: savedPass}); 
             } 
             else { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
         };
@@ -254,9 +234,7 @@
             data.contacts.forEach(function(c) { contacts[c.username] = c; }); 
             typingStatus = {}; 
             
-            // Guardar en caché
             localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(allMessages));
-            localStorage.setItem('sg_contacts_' + myUsername, JSON.stringify(contacts));
             
             calculateUnread();
             renderUserList(); 
@@ -283,7 +261,8 @@
                 const unread = unreadCounts[target] || 0; const displayName = getDisplayName(target); const pic = contacts[target].profilePic;
                 const avatarHtml = pic ? "<img src='" + pic + "' class='w-[46px] h-[46px] rounded-full object-cover'>" : "<div class='w-[46px] h-[46px] rounded-full bg-[#3a3a3c] flex items-center justify-center text-xl'>👤</div>";
                 
-                let unreadHtml = unread > 0 ? "<div class='bg-[#0a84ff] text-white text-[12px] font-semibold w-5 h-5 flex items-center justify-center rounded-full'>" + unread + "</div>" : "";
+                // LA BOLITA ROJA/AZUL QUE CUENTA MENSAJES 
+                let unreadHtml = unread > 0 ? "<div class='bg-[#0a84ff] text-white text-[11px] font-bold min-w-[20px] h-[20px] px-1.5 flex items-center justify-center rounded-full flex-shrink-0 ml-2 shadow-sm'>" + unread + "</div>" : "";
                 let timeHtml = lastMsg ? "<span class='text-[13px] text-[#8e8e93]'>" + lastMsg.time + "</span>" : "";
 
                 const div = document.createElement('div'); div.className = "chat-tab flex items-center pl-4 py-2 " + (activeChat === target ? "active-tab" : ""); 
@@ -313,7 +292,7 @@
             if (msg.deleted) { contentHTML = "<span class='msg-deleted'>🚫 Eliminado</span>"; } 
             else if (msg.type === 'image') { 
                 if (msg.viewOnce) { if (msg.viewed) contentHTML = "<span class='italic text-[#8e8e93]'>⭕ Abierto</span>"; else if (isMe) contentHTML = "<span class='italic text-white'>① Foto</span>"; else contentHTML = "<button onclick=\"viewOnceImage('" + msg._id + "', '" + msg.text + "')\" class='font-semibold text-white bg-blue-500 px-4 py-2 rounded-full'>① Ver</button>"; } 
-                else { contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-xl max-w-[200px] sm:max-w-[250px] cursor-pointer hover:opacity-80 transition-opacity'>"; } 
+                else { contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-2xl max-w-[200px] sm:max-w-[250px] cursor-pointer hover:opacity-80 transition-opacity'>"; } 
             } 
             else if (msg.type === 'audio') { contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60'></audio>"; } 
             else { contentHTML = "<p class='text-[16px] leading-[1.3]'>" + msg.text + "</p>"; }
@@ -334,6 +313,7 @@
             box.scrollTop = box.scrollHeight;
         }
 
+        // --- SISTEMA DE INYECCIÓN SIN LAG ---
         socket.on('chat message', function(msg) {
             allMessages.push(msg); localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(allMessages));
             typingStatus[msg.sender] = false;
@@ -345,8 +325,10 @@
 
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
-                if (!document.hidden) { document.getElementById('notif-sound').play().catch(function(){}); if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } } 
-                else {
+                if (!document.hidden) { 
+                    document.getElementById('notif-sound').play().catch(function(){}); 
+                    if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } 
+                } else {
                     if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
                     if ("Notification" in window && Notification.permission === "granted") {
                         let notifBody = msg.type === 'image' ? '📷 Imagen' : (msg.type === 'audio' ? '🎤 Nota de voz' : msg.text);
@@ -376,7 +358,7 @@
         function toggleEmojis() { document.getElementById('emoji-picker').classList.toggle('hidden'); }
         function addEmoji(e) { input.value += e; input.dispatchEvent(new Event('input')); }
         
-        socket.on('typing', function(d) { typingStatus[d.user] = d.isTyping; renderUserList(); if(activeChat === d.user) { document.getElementById('chat-status').textContent = d.isTyping ? 'Escribiendo...' : ''; } });
+        socket.on('typing', function(d) { typingStatus[d.user] = d.isTyping; renderUserList(); if(activeChat === d.user) { document.getElementById('chat-status').textContent = d.isTyping ? 'escribiendo...' : ''; } });
 
         async function startCall(isVideo) { if(!activeChat) return; currentCallUser = activeChat; currentCallIsVideo = isVideo; document.getElementById('video-call-screen').classList.remove('hidden'); document.getElementById('call-status-overlay').classList.remove('hidden'); document.getElementById('accept-call-btn').classList.add('hidden'); document.getElementById('call-icon').textContent = isVideo ? "📹" : "📞"; document.getElementById('call-status-text').textContent = (isVideo ? "Videollamada" : "Llamada") + " a " + getDisplayName(activeChat) + "..."; if(!isVideo) { document.getElementById('remote-video').classList.add('hidden'); document.getElementById('local-video').classList.add('hidden'); document.getElementById('audio-call-avatar').classList.remove('hidden'); } else { document.getElementById('remote-video').classList.remove('hidden'); document.getElementById('local-video').classList.remove('hidden'); document.getElementById('audio-call-avatar').classList.add('hidden'); } try { localStream = await navigator.mediaDevices.getUserMedia({video: isVideo, audio: true}); if(isVideo) document.getElementById('local-video').srcObject = localStream; socket.emit('call_user', { userToCall: activeChat, isVideo: isVideo }); } catch(e) { alert("Permiso denegado"); endCall(); } }
         socket.on('incoming_call', async function(data) { currentCallUser = data.from; currentCallIsVideo = data.isVideo; document.getElementById('video-call-screen').classList.remove('hidden'); document.getElementById('call-status-overlay').classList.remove('hidden'); document.getElementById('accept-call-btn').classList.remove('hidden'); document.getElementById('call-icon').textContent = data.isVideo ? "📹" : "📞"; document.getElementById('call-status-text').textContent = (data.isVideo ? "Videollamada" : "Llamada") + " de " + getDisplayName(data.from); if(!data.isVideo) { document.getElementById('remote-video').classList.add('hidden'); document.getElementById('local-video').classList.add('hidden'); document.getElementById('audio-call-avatar').classList.remove('hidden'); } else { document.getElementById('remote-video').classList.remove('hidden'); document.getElementById('local-video').classList.remove('hidden'); document.getElementById('audio-call-avatar').classList.add('hidden'); } });
