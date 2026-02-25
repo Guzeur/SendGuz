@@ -24,7 +24,6 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// FANTASMA V3: Optimizado estrictamente para iOS
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); 
@@ -32,34 +31,18 @@ app.get('/sw.js', (req, res) => {
     self.addEventListener('push', function(e) {
       let data = { title: 'Nuevo mensaje', body: 'Tienes un mensaje en SendGuz' };
       if (e.data) { data = e.data.json(); }
-      
-      const options = {
-        body: data.body,
-        icon: '/icon.svg',
-        badge: '/icon.svg',
-        vibrate: [300, 100, 400],
-        tag: 'sendguz-msg',
-        renotify: true,
-        data: { url: '/' }
-      };
-      
-      e.waitUntil(self.registration.showNotification(data.title, options));
+      e.waitUntil(self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg', renotify: true, data: { url: '/' } }));
     });
-
     self.addEventListener('notificationclick', function(e) {
       e.notification.close();
-      e.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
+      e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
           if (windowClients.length > 0) {
             let client = windowClients[0];
-            for (let i = 0; i < windowClients.length; i++) {
-              if (windowClients[i].focused) client = windowClients[i];
-            }
+            for (let i = 0; i < windowClients.length; i++) { if (windowClients[i].focused) client = windowClients[i]; }
             return client.focus();
           }
           return clients.openWindow('/');
-        })
-      );
+      }));
     });
   `);
 });
@@ -86,20 +69,13 @@ let connectedUsers = {};
 let userStatus = {}; 
 
 io.on('connection', (socket) => {
-  
-  socket.on('save_subscription', async (sub) => {
-    if(socket.username) await User.updateOne({ username: socket.username }, { pushSubscription: sub });
-  });
-
-  socket.on('status', (state) => {
-    if(socket.username) userStatus[socket.username] = state; 
-  });
+  socket.on('save_subscription', async (sub) => { if(socket.username) await User.updateOne({ username: socket.username }, { pushSubscription: sub }); });
+  socket.on('status', (state) => { if(socket.username) userStatus[socket.username] = state; });
 
   socket.on('register', async (data) => {
     if (!mongoURI) return socket.emit('auth_error', 'BD no conectada');
     try {
-      const existU = await User.findOne({ username: data.username });
-      const existP = await User.findOne({ phone: data.phone });
+      const existU = await User.findOne({ username: data.username }); const existP = await User.findOne({ phone: data.phone });
       if (existU || existP) return socket.emit('auth_error', 'Usuario o Teléfono ya existe.');
       const newUser = new User({ username: data.username, phone: data.phone, password: data.password });
       await newUser.save(); socket.emit('register_success', '¡Cuenta creada con éxito!');
@@ -109,15 +85,10 @@ io.on('connection', (socket) => {
   socket.on('login', async (data) => {
     const user = await User.findOne({ username: data.username, password: data.password });
     if (!user) return socket.emit('auth_error', 'Datos incorrectos.');
-    
-    socket.username = user.username; 
-    connectedUsers[user.username] = socket.id;
-    userStatus[user.username] = 'active'; 
-    
+    socket.username = user.username; connectedUsers[user.username] = socket.id; userStatus[user.username] = 'active'; 
     const myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] }).sort({ timestamp: 1 });
     const contactsSet = new Set();
     myMsgs.forEach(m => { if (m.sender !== user.username) contactsSet.add(m.sender); if (m.receiver !== user.username) contactsSet.add(m.receiver); });
-    
     const contactsInfo = await User.find({ username: { $in: Array.from(contactsSet) } }, 'username profilePic phone');
     socket.emit('login_success', { username: user.username, profilePic: user.profilePic, phone: user.phone });
     socket.emit('load_initial_data', { messages: myMsgs, contacts: contactsInfo });
@@ -137,18 +108,19 @@ io.on('connection', (socket) => {
 
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
-    
     const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow, viewOnce: data.viewOnce || false });
     const savedMsg = await newMsg.save(); 
     socket.emit('chat message', savedMsg); 
 
     const receiverSocket = connectedUsers[data.receiver];
     
-    if (receiverSocket && userStatus[data.receiver] === 'active') {
+    // CORRECCIÓN: SIEMPRE enviar al socket, sin importar si está minimizado
+    if (receiverSocket) {
         io.to(receiverSocket).emit('chat message', savedMsg); 
     } 
     
-    if (!receiverSocket || userStatus[data.receiver] !== 'active') {
+    // Si está minimizado o desconectado, enviar la alerta Push a los servidores de Apple/Google
+    if (!receiverSocket || userStatus[data.receiver] === 'background') {
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
             let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
@@ -177,8 +149,7 @@ io.on('connection', (socket) => {
   socket.on('delete_chat', async (targetUser) => {
     if (!socket.username) return;
     await Message.deleteMany({ $or: [ { sender: socket.username, receiver: targetUser }, { sender: targetUser, receiver: socket.username } ] });
-    const targetSocket = connectedUsers[targetUser];
-    if (targetSocket) io.to(targetSocket).emit('chat_deleted', socket.username);
+    const targetSocket = connectedUsers[targetUser]; if (targetSocket) io.to(targetSocket).emit('chat_deleted', socket.username);
     socket.emit('chat_deleted', targetUser);
   });
 
@@ -196,12 +167,10 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (socket.username) { 
-        delete connectedUsers[socket.username]; 
-        userStatus[socket.username] = 'background';
-        io.emit('online_status', Object.keys(connectedUsers)); 
+        delete connectedUsers[socket.username]; userStatus[socket.username] = 'background'; io.emit('online_status', Object.keys(connectedUsers)); 
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V15 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V16 corriendo en puerto " + PORT));
