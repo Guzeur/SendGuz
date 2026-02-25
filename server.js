@@ -119,10 +119,9 @@ io.on('connection', (socket) => {
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
     
-    // --- LA SOLUCIÓN AL CORTOCIRCUITO ---
-    // Creamos un objeto JSON puro (ligero y seguro) en lugar de un objeto pesado de Base de Datos
+    // CREAMOS EL MENSAJE PURO Y LIGERO
     const plainMsg = {
-        _id: new mongoose.Types.ObjectId(), // Generamos el ID matemático aquí mismo
+        _id: new mongoose.Types.ObjectId().toString(), // Solución para enviar datos limpios sin error
         sender: socket.username,
         receiver: data.receiver,
         text: data.text,
@@ -134,7 +133,7 @@ io.on('connection', (socket) => {
         status: 'sent'
     };
     
-    // Lo disparamos al instante sin colgar el servidor
+    // Lo disparamos al instante
     socket.emit('chat message', plainMsg); 
 
     const receiverSocket = connectedUsers[data.receiver];
@@ -152,9 +151,8 @@ io.on('connection', (socket) => {
         }
     }
 
-    // Guardamos en la base de datos tranquilamente de fondo
+    // Guardar en la base de datos
     const newMsg = new Message(plainMsg);
-    newMsg.isNew = true;
     newMsg.save().catch(err => console.error("Error BD:", err));
   });
 
@@ -185,6 +183,7 @@ io.on('connection', (socket) => {
     const receiverSocket = connectedUsers[data.receiver]; if (receiverSocket) io.to(receiverSocket).emit('typing', { user: socket.username, isTyping: data.isTyping });
   });
 
+  // Llamadas
   socket.on('call_user', (data) => { const r = connectedUsers[data.userToCall]; if(r) io.to(r).emit('incoming_call', { from: socket.username, isVideo: data.isVideo }); });
   socket.on('accept_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_accepted', { from: socket.username }); });
   socket.on('reject_call', (data) => { const c = connectedUsers[data.to]; if(c) io.to(c).emit('call_rejected', { from: socket.username }); });
@@ -201,4 +200,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V19 (Ultra Estable) corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V20 Anti-Crash corriendo en puerto " + PORT));
