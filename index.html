@@ -5,140 +5,166 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SendGuz</title>
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#000000">
     <link rel="apple-touch-icon" href="/icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        ::-webkit-scrollbar { width: 5px; }
+        /* ESTILO NATIVO DE APPLE / iMESSAGE */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #000000; color: #ffffff; overscroll-behavior-y: none; }
+        ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
-        .chat-tab { cursor: pointer; transition: background-color 0.2s; -webkit-tap-highlight-color: transparent; user-select: none; }
-        .chat-tab:hover { background: #27272a; }
-        .chat-tab:active { background: #3f3f46; }
-        .active-tab { background: #3f3f46; border-left: 4px solid #3b82f6; } /* Azul iMessage */
-        .msg-deleted { font-style: italic; color: #a1a1aa; display: flex; align-items: center; gap: 5px; }
+        ::-webkit-scrollbar-thumb { background: #3a3a3c; border-radius: 10px; }
+        
+        .chat-tab { cursor: pointer; transition: background-color 0.15s; -webkit-tap-highlight-color: transparent; user-select: none; }
+        .chat-tab:hover { background: #1c1c1e; }
+        .chat-tab:active { background: #2c2c2e; }
+        .active-tab { background: #1c1c1e; }
+        
+        /* Burbujas tipo iMessage */
         .msg-bubble { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform 0.1s; }
-        .msg-bubble:active { transform: scale(0.98); }
-        .chat-bg { background-color: #0b141a; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: multiply; background-size: contain; }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
-        .recording { animation: pulse-red 1.5s infinite; color: #ef4444 !important; }
+        .msg-bubble:active { transform: scale(0.97); filter: brightness(0.9); }
+        .bubble-me { background-color: #0a84ff; color: white; border-radius: 20px; border-bottom-right-radius: 4px; }
+        .bubble-them { background-color: #262628; color: white; border-radius: 20px; border-bottom-left-radius: 4px; }
+        
+        /* Fondo negro puro */
+        .chat-bg { background-color: #000000; }
+        
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 69, 58, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0); } }
+        .recording { animation: pulse-red 1.5s infinite; background-color: #ff453a !important; color: white !important; }
+        
         @media (max-width: 768px) {
-            #sidebar { width: 100% !important; display: flex !important; height: 100vh !important; }
-            #chat-area { display: none !important; width: 100% !important; height: 100vh !important; }
+            #sidebar { width: 100% !important; display: flex !important; height: 100vh !important; border: none; }
+            #chat-area { display: none !important; width: 100% !important; height: 100vh !important; border: none; }
             .mobile-chat-active #sidebar { display: none !important; }
             .mobile-chat-active #chat-area { display: flex !important; }
         }
-        #loading-screen { transition: opacity 0.3s ease; }
+        #loading-screen { transition: opacity 0.2s ease; }
+        
+        /* Líneas separadoras estilo iOS */
+        .ios-divider { border-bottom: 0.5px solid #2c2c2e; margin-left: 76px; }
     </style>
 </head>
-<body class="bg-zinc-950 flex items-center justify-center min-h-screen font-sans text-white overflow-hidden">
+<body class="flex items-center justify-center min-h-screen overflow-hidden">
 
-    <div id="loading-screen" class="fixed inset-0 bg-zinc-950 z-[100] flex flex-col items-center justify-center">
+    <div id="loading-screen" class="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center">
         <div class="text-7xl mb-6 animate-bounce">🐺</div>
-        <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div class="w-8 h-8 border-4 border-[#0a84ff] border-t-transparent rounded-full animate-spin"></div>
     </div>
 
-    <div id="login-screen" class="hidden bg-zinc-900 p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-zinc-800 mx-4 z-50">
+    <div id="login-screen" class="hidden bg-[#1c1c1e] p-8 rounded-[30px] shadow-2xl text-center max-w-sm w-full mx-4 z-50">
         <div class="flex items-center justify-center gap-3 mb-2">
             <span class="text-5xl drop-shadow-lg">🐺</span>
-            <h1 class="text-4xl font-extrabold tracking-tight text-white">SendGuz</h1>
+            <h1 class="text-3xl font-bold tracking-tight text-white">SendGuz</h1>
         </div>
-        <p class="text-sm text-zinc-400 mb-8">Comunicación Privada</p>
-        <input id="l-user" type="text" placeholder="Usuario" class="w-full p-3 rounded-xl bg-zinc-800 mb-3 outline-none focus:ring-2 focus:ring-blue-500">
-        <input id="l-phone" type="text" placeholder="Teléfono" class="w-full p-3 rounded-xl bg-zinc-800 mb-3 outline-none focus:ring-2 focus:ring-blue-500">
-        <input id="l-pass" type="password" placeholder="Contraseña" class="w-full p-3 rounded-xl bg-zinc-800 mb-6 outline-none focus:ring-2 focus:ring-blue-500">
-        <div class="flex gap-3">
-            <button onclick="login()" class="flex-1 bg-blue-600 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-500 transition-colors">Entrar</button>
-            <button onclick="register()" class="flex-1 bg-zinc-700 py-3 rounded-xl font-bold hover:bg-zinc-600 transition-colors">Registrar</button>
+        <p class="text-sm text-[#8e8e93] mb-8">Mensajes seguros</p>
+        <input id="l-user" type="text" placeholder="Usuario" class="w-full p-4 rounded-xl bg-[#2c2c2e] text-white mb-3 outline-none focus:ring-2 focus:ring-[#0a84ff] placeholder-[#8e8e93]">
+        <input id="l-phone" type="text" placeholder="Teléfono" class="w-full p-4 rounded-xl bg-[#2c2c2e] text-white mb-3 outline-none focus:ring-2 focus:ring-[#0a84ff] placeholder-[#8e8e93]">
+        <input id="l-pass" type="password" placeholder="Contraseña" class="w-full p-4 rounded-xl bg-[#2c2c2e] text-white mb-8 outline-none focus:ring-2 focus:ring-[#0a84ff] placeholder-[#8e8e93]">
+        <div class="flex flex-col gap-3">
+            <button onclick="login()" class="w-full bg-[#0a84ff] text-white py-3.5 rounded-xl font-semibold text-[17px] hover:bg-blue-500 transition-colors">Entrar</button>
+            <button onclick="register()" class="w-full bg-[#2c2c2e] text-white py-3.5 rounded-xl font-semibold text-[17px] hover:bg-[#3a3a3c] transition-colors">Crear cuenta</button>
         </div>
         <p id="auth-msg" class="text-sm mt-4 hidden"></p>
     </div>
 
-    <div id="chat-screen" class="hidden w-full h-screen md:h-[95vh] md:max-w-6xl bg-zinc-900 md:rounded-3xl overflow-hidden flex border border-zinc-800 shadow-2xl">
-        <div id="sidebar" class="w-full md:w-1/3 bg-zinc-950 border-r border-zinc-800 flex flex-col h-full">
-            <div class="p-4 md:py-5 bg-zinc-950 flex items-center justify-between border-b border-zinc-900">
-                <div class="flex items-center gap-2">
-                    <span class="text-2xl">🐺</span>
-                    <span class="font-extrabold text-xl tracking-tight text-white">SendGuz</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="logout()" class="text-zinc-400 hover:text-red-400 p-2 rounded-lg transition-colors text-xl" title="Cerrar Sesión">🚪</button>
-                    <button onclick="addContact()" class="bg-blue-600/20 text-blue-400 p-2 rounded-lg hover:bg-blue-600 hover:text-white transition-all text-sm font-bold">➕ <span class="hidden md:inline ml-1">Nuevo</span></button>
+    <div id="chat-screen" class="hidden w-full h-screen md:h-[95vh] md:max-w-[1200px] bg-black md:rounded-[20px] overflow-hidden flex md:border border-[#2c2c2e] shadow-2xl">
+        
+        <div id="sidebar" class="w-full md:w-[350px] bg-black md:border-r border-[#2c2c2e] flex flex-col h-full">
+            <div class="px-5 pt-8 pb-3 bg-black flex items-center justify-between">
+                <span class="font-bold text-3xl tracking-tight text-white">Chats</span>
+                <div class="flex items-center gap-3">
+                    <button onclick="logout()" class="text-[#0a84ff] hover:text-blue-400 p-2 text-xl" title="Cerrar Sesión">🚪</button>
+                    <button onclick="addContact()" class="w-8 h-8 bg-[#1c1c1e] text-[#0a84ff] rounded-full flex items-center justify-center hover:bg-[#2c2c2e] transition-colors text-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 4.5v15m7.5-7.5h-15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
                 </div>
             </div>
 
-            <div class="px-4 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 cursor-pointer hover:bg-zinc-800 transition-colors" onclick="document.getElementById('my-pic-upload').click()">
-                <div id="my-pic-container" class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
-                    <img id="my-pic" src="" class="hidden w-full h-full object-cover">
-                    <span id="my-pic-placeholder" class="text-zinc-500 text-xl">👤</span>
-                </div>
-                <div class="flex-1 overflow-hidden">
-                    <span class="font-bold block text-sm truncate" id="my-profile-name"></span>
-                    <span class="text-[10px] text-zinc-400">Mi Perfil (Toca para cambiar foto)</span>
+            <div class="px-5 py-2">
+                <div class="bg-[#1c1c1e] rounded-[14px] p-2 flex items-center gap-3 cursor-pointer hover:bg-[#2c2c2e] transition-colors" onclick="document.getElementById('my-pic-upload').click()">
+                    <div id="my-pic-container" class="w-12 h-12 rounded-full bg-[#3a3a3c] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <img id="my-pic" src="" class="hidden w-full h-full object-cover">
+                        <span id="my-pic-placeholder" class="text-white text-xl">🐺</span>
+                    </div>
+                    <div class="flex-1 overflow-hidden">
+                        <span class="font-semibold text-white block text-[17px] truncate" id="my-profile-name"></span>
+                        <span class="text-[13px] text-[#8e8e93]">Mi Perfil</span>
+                    </div>
                 </div>
                 <input type="file" id="my-pic-upload" accept="image/*" class="hidden">
             </div>
 
-            <div class="px-4 py-3 bg-zinc-950"><h2 class="text-2xl font-black text-white/90">Chats</h2></div>
-            <div id="user-list" class="flex-1 overflow-y-auto overflow-x-hidden bg-zinc-950"></div>
+            <div id="user-list" class="flex-1 overflow-y-auto overflow-x-hidden bg-black mt-2"></div>
         </div>
 
         <div id="chat-area" class="flex-1 flex flex-col relative chat-bg h-full">
-            <div id="empty-chat" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 z-10 bg-zinc-950">
-                <div class="text-7xl mb-6 opacity-30 text-white">🐺</div>
-                <h2 class="text-xl font-bold text-zinc-400">SendGuz</h2>
+            <div id="empty-chat" class="absolute inset-0 flex flex-col items-center justify-center text-[#8e8e93] z-10 bg-black">
+                <div class="text-7xl mb-4 opacity-20 text-white">🐺</div>
+                <h2 class="text-lg font-medium">SendGuz iMessage</h2>
             </div>
 
-            <div id="active-chat-header" class="hidden bg-zinc-900/90 backdrop-blur-md p-3 flex-shrink-0 border-b border-zinc-800 z-20 flex justify-between items-center shadow-sm">
+            <div id="active-chat-header" class="hidden bg-black/80 backdrop-blur-xl p-3 flex-shrink-0 border-b border-[#2c2c2e] z-20 flex justify-between items-center h-[70px]">
                 
-                <div class="flex items-center gap-2 md:gap-3 flex-1 cursor-pointer overflow-hidden" onclick="renameContact()" title="Toca para cambiar nombre">
-                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-2xl p-1 text-blue-500 hover:text-blue-400 flex-shrink-0 w-8 font-bold">‹</button>
+                <div class="flex items-center gap-1 cursor-pointer overflow-hidden flex-1" onclick="renameContact()">
+                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-4xl p-2 text-[#0a84ff] font-light flex-shrink-0 leading-none -mt-1">‹</button>
                     
-                    <div id="active-pic-container" onclick="event.stopPropagation(); expandProfilePic()" class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0 hover:opacity-80 transition-opacity">
+                    <div id="active-pic-container" onclick="event.stopPropagation(); expandProfilePic()" class="w-9 h-9 rounded-full bg-[#3a3a3c] flex items-center justify-center overflow-hidden flex-shrink-0 ml-1">
                         <img id="active-pic" src="" class="hidden w-full h-full object-cover">
-                        <span id="active-pic-placeholder" class="text-zinc-500 text-xl">👤</span>
+                        <span id="active-pic-placeholder" class="text-white text-sm">👤</span>
                     </div>
 
-                    <div class="flex flex-col overflow-hidden px-1 text-left w-full">
-                        <h3 id="chat-title" class="font-bold text-[15px] md:text-lg truncate tracking-tight text-white w-full"></h3>
-                        <span id="chat-status" class="text-[11px] md:text-xs text-blue-400 block font-medium w-full truncate"></span>
+                    <div class="flex flex-col overflow-hidden px-2 text-left">
+                        <h3 id="chat-title" class="font-semibold text-[17px] text-white truncate w-full leading-tight"></h3>
+                        <span id="chat-status" class="text-[12px] text-[#8e8e93] block font-normal w-full truncate leading-tight"></span>
                     </div>
                 </div>
                 
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    <button onclick="startCall(false)" class="w-9 h-9 flex items-center justify-center bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors text-sm shadow-sm" title="Llamada de Voz">📞</button>
-                    <button onclick="startCall(true)" class="w-9 h-9 flex items-center justify-center bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors text-sm shadow-sm" title="Videollamada">📹</button>
+                <div class="flex items-center gap-4 px-2 flex-shrink-0 text-[#0a84ff]">
+                    <button onclick="startCall(false)" class="hover:opacity-70 transition-opacity" title="Llamada">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path fill-rule="evenodd" d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <button onclick="startCall(true)" class="hover:opacity-70 transition-opacity" title="Video">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7"><path d="M4.5 4.5a3 3 0 00-3 3v9a3 3 0 003 3h8.25a3 3 0 003-3v-9a3 3 0 00-3-3H4.5zM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06z" /></svg>
+                    </button>
                 </div>
             </div>
             
-            <div id="messages" class="flex-1 p-4 md:px-8 overflow-y-auto flex flex-col gap-[2px] z-0 overflow-x-hidden pb-6"></div>
+            <div id="messages" class="flex-1 p-4 md:px-6 overflow-y-auto flex flex-col gap-[2px] z-0 overflow-x-hidden pb-6"></div>
 
-            <div id="emoji-picker" class="hidden absolute bottom-[80px] left-2 bg-zinc-800 border border-zinc-700 p-4 rounded-3xl grid grid-cols-6 gap-3 text-2xl z-50 shadow-2xl">
+            <div id="emoji-picker" class="hidden absolute bottom-[80px] left-4 bg-[#2c2c2e]/90 backdrop-blur-xl border border-[#3a3a3c] p-4 rounded-[20px] grid grid-cols-6 gap-3 text-2xl z-50 shadow-2xl">
                 <span class="cursor-pointer hover:scale-110" onclick="addEmoji('😀')">😀</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('😂')">😂</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('🥰')">🥰</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('😎')">😎</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('🥺')">🥺</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('😭')">😭</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('👍')">👍</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('🙏')">🙏</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('❤️')">❤️</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('🔥')">🔥</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('🎉')">🎉</span><span class="cursor-pointer hover:scale-110" onclick="addEmoji('🐺')">🐺</span>
             </div>
 
-            <div class="p-2 md:p-3 bg-transparent z-20 flex-shrink-0 pb-4">
-                <form id="form" class="hidden bg-zinc-800/90 backdrop-blur-md border border-zinc-700/50 rounded-full flex items-center gap-1 p-1 md:p-1.5 shadow-lg">
-                    <button type="button" onclick="toggleEmojis()" class="p-2 text-2xl text-zinc-400 hover:text-white transition-colors">😊</button>
-                    <input type="file" id="image-upload" accept="image/*" class="hidden">
-                    <button type="button" onclick="document.getElementById('image-upload').click()" class="p-2 text-xl text-zinc-400 hover:text-white transition-colors">📎</button>
-                    <button type="button" id="view-once-btn" onclick="toggleViewOnce()" class="p-1 px-2 text-lg text-zinc-500 hover:text-white transition-colors" title="Ver foto 1 sola vez">①</button>
-                    
-                    <input id="input" autocomplete="off" placeholder="Mensaje de iMessage..." class="flex-1 bg-transparent px-2 py-2 text-[15px] text-white outline-none">
-                    
-                    <button type="button" id="mic-btn" onclick="toggleAudio()" class="w-9 h-9 flex items-center justify-center bg-transparent text-zinc-400 hover:text-white text-xl transition-colors">🎤</button>
-                    
-                    <button type="submit" id="send-btn" class="hidden w-9 h-9 flex items-center justify-center bg-blue-600 rounded-full text-white shadow-md hover:scale-105 transition-transform">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
+            <div class="px-3 pb-5 pt-2 bg-black z-20 flex-shrink-0">
+                <form id="form" class="hidden flex items-center gap-2">
+                    <button type="button" onclick="document.getElementById('image-upload').click()" class="text-[#8e8e93] hover:text-[#0a84ff] transition-colors p-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                     </button>
+                    <input type="file" id="image-upload" accept="image/*" class="hidden">
+                    
+                    <button type="button" onclick="toggleEmojis()" class="text-[#8e8e93] hover:text-[#0a84ff] transition-colors p-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>
+                    </button>
+                    
+                    <div class="flex-1 bg-[#1c1c1e] border border-[#3a3a3c] rounded-full flex items-center pr-1 pl-4 h-[38px]">
+                        <input id="input" autocomplete="off" placeholder="iMessage" class="flex-1 bg-transparent text-[16px] text-white outline-none placeholder-[#8e8e93]">
+                        
+                        <button type="button" id="mic-btn" onclick="toggleAudio()" class="w-7 h-7 rounded-full flex items-center justify-center text-[#8e8e93] hover:text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" /><path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" /></svg>
+                        </button>
+                        
+                        <button type="submit" id="send-btn" class="hidden w-[28px] h-[28px] bg-[#0a84ff] rounded-full flex items-center justify-center text-white shadow-sm mr-[2px]">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <div id="video-call-screen" class="hidden fixed inset-0 z-[200] bg-zinc-950 flex flex-col"><div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden"><div id="audio-call-avatar" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-0"><div class="w-32 h-32 rounded-full bg-zinc-800 flex items-center justify-center text-6xl shadow-2xl mb-4 border-4 border-zinc-700">👤</div></div><video id="remote-video" class="w-full h-full object-cover z-10" autoplay playsinline></video><video id="local-video" class="absolute bottom-6 right-6 w-28 md:w-48 rounded-xl shadow-2xl border-2 border-zinc-800 bg-zinc-900 object-cover z-20" autoplay playsinline muted></video><div id="call-status-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30"><div class="w-24 h-24 rounded-full bg-blue-600 animate-pulse mb-4 flex items-center justify-center text-4xl" id="call-icon">📞</div><h2 id="call-status-text" class="text-2xl font-bold text-white text-center px-4">Llamando...</h2></div></div><div class="h-24 bg-zinc-900 flex items-center justify-center gap-8 border-t border-zinc-800 relative z-40"><button id="accept-call-btn" onclick="acceptCall()" class="hidden w-14 h-14 bg-green-500 rounded-full text-white text-2xl flex items-center justify-center shadow-lg hover:scale-110 transition-transform">📞</button><button onclick="endCall()" class="w-14 h-14 bg-red-500 rounded-full text-white text-2xl flex items-center justify-center shadow-lg hover:scale-110 transition-transform">☎️</button></div></div>
+    <div id="video-call-screen" class="hidden fixed inset-0 z-[200] bg-black flex flex-col"><div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden"><div id="audio-call-avatar" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-[#1c1c1e] z-0"><div class="w-32 h-32 rounded-full bg-[#3a3a3c] flex items-center justify-center text-6xl shadow-2xl mb-4">👤</div></div><video id="remote-video" class="w-full h-full object-cover z-10" autoplay playsinline></video><video id="local-video" class="absolute bottom-6 right-6 w-28 md:w-48 rounded-xl shadow-2xl border-2 border-[#3a3a3c] bg-[#1c1c1e] object-cover z-20" autoplay playsinline muted></video><div id="call-status-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30"><div class="w-20 h-20 rounded-full bg-[#0a84ff] animate-pulse mb-4 flex items-center justify-center text-3xl" id="call-icon">📞</div><h2 id="call-status-text" class="text-xl font-medium text-white text-center px-4">Llamando...</h2></div></div><div class="h-[100px] bg-[#1c1c1e] flex items-center justify-center gap-10 pb-4 relative z-40"><button id="accept-call-btn" onclick="acceptCall()" class="hidden w-[60px] h-[60px] bg-[#34c759] rounded-full text-white text-2xl flex items-center justify-center shadow-lg">📞</button><button onclick="endCall()" class="w-[60px] h-[60px] bg-[#ff3b30] rounded-full text-white text-2xl flex items-center justify-center shadow-lg">☎️</button></div></div>
     
-    <div id="image-modal" class="hidden fixed inset-0 z-[100] bg-black/95 flex justify-center items-center opacity-0 transition-opacity duration-300" onclick="closeImageModal()"><button class="absolute top-4 right-4 text-white text-4xl hover:text-red-500 font-bold z-[101] drop-shadow-lg">&times;</button><img id="modal-img" src="" class="max-w-full max-h-full object-contain p-4 scale-95 transition-transform duration-300"></div>
+    <div id="image-modal" class="hidden fixed inset-0 z-[100] bg-black/95 flex justify-center items-center opacity-0 transition-opacity duration-200" onclick="closeImageModal()"><button class="absolute top-6 right-6 text-[#8e8e93] text-4xl hover:text-white font-light z-[101]">&times;</button><img id="modal-img" src="" class="max-w-full max-h-full object-contain p-4 scale-95 transition-transform duration-200"></div>
 
     <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" preload="auto"></audio>
     <script src="/socket.io/socket.io.js"></script>
@@ -147,15 +173,35 @@
         let myUsername = "", activeChat = "";
         let allMessages = [], contacts = {}, unreadCounts = {}, typingStatus = {}, onlineUsers = [];
         let mediaRecorder, audioChunks = [], isRecording = false; let isViewOnce = false;
-        
-        let localStream, peerConnection, currentCallUser = "";
-        let currentCallIsVideo = true; 
-
-        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] };
+        let localStream, peerConnection, currentCallUser = ""; let currentCallIsVideo = true; 
+        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
         const publicVapidKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB22-xO3U-2XMDn-R_cewgKMc';
 
         let aliases = JSON.parse(localStorage.getItem('sg_aliases')) || {};
         function getDisplayName(username) { return aliases[username] || username; }
+
+        // --- MAGIA ANTI-LAG: MEMORIA CACHÉ LOCAL ---
+        // Esto permite que la app muestre los mensajes de inmediato al abrirse
+        function loadFromCache() {
+            const cachedUser = localStorage.getItem('sg_user');
+            if (cachedUser) {
+                const cachedContacts = localStorage.getItem('sg_contacts_' + cachedUser);
+                const cachedMsgs = localStorage.getItem('sg_msgs_' + cachedUser);
+                if (cachedContacts) contacts = JSON.parse(cachedContacts);
+                if (cachedMsgs) {
+                    allMessages = JSON.parse(cachedMsgs);
+                    calculateUnread();
+                    renderUserList();
+                }
+            }
+        }
+
+        function calculateUnread() {
+            unreadCounts = {};
+            allMessages.forEach(function(m) {
+                if (m.receiver === myUsername && m.status === 'sent') { unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; }
+            });
+        }
 
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === "visible") {
@@ -169,7 +215,11 @@
 
         window.onload = function() {
             const savedUser = localStorage.getItem('sg_user'); const savedPass = localStorage.getItem('sg_pass');
-            if (savedUser && savedPass) { socket.emit('login', {username: savedUser, password: savedPass}); } 
+            if (savedUser && savedPass) { 
+                myUsername = savedUser;
+                loadFromCache(); // Cargar interfaz al instante
+                socket.emit('login', {username: savedUser, password: savedPass}); // Sincronizar en silencio
+            } 
             else { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
         };
 
@@ -178,19 +228,14 @@
             if (savedUser && savedPass && myUsername !== "") { socket.emit('login', {username: savedUser, password: savedPass}); }
         });
 
-        function logout() { if(confirm("¿Cerrar sesión?")) { localStorage.removeItem('sg_user'); localStorage.removeItem('sg_pass'); location.reload(); } }
+        function logout() { if(confirm("¿Cerrar sesión?")) { localStorage.clear(); location.reload(); } }
+        function requestPushPermission() { if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') { Notification.requestPermission().then(function(permission) { if (permission === 'granted') setupPushNotifications(); }); } }
 
-        function requestPushPermission() {
-            if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-                Notification.requestPermission().then(function(permission) { if (permission === 'granted') setupPushNotifications(); });
-            }
-        }
-
-        function login() { requestPushPermission(); const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && pw) { localStorage.setItem('sg_temp_pass', pw); socket.emit('login', {username: u, password: pw}); } }
+        function login() { requestPushPermission(); const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && pw) { localStorage.setItem('sg_temp_pass', pw); document.getElementById('loading-screen').classList.remove('hidden'); socket.emit('login', {username: u, password: pw}); } }
         function register() { requestPushPermission(); const u = document.getElementById('l-user').value.trim(); const p = document.getElementById('l-phone').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && p && pw) socket.emit('register', {username: u, phone: p, password: pw}); }
 
-        socket.on('auth_error', function(msg) { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-red-400 text-sm mt-4 block'; a.classList.remove('hidden'); });
-        socket.on('register_success', function(msg) { const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-green-400 text-sm mt-4 block'; a.classList.remove('hidden'); });
+        socket.on('auth_error', function(msg) { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-[#ff453a] text-sm mt-4 block'; a.classList.remove('hidden'); });
+        socket.on('register_success', function(msg) { const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-[#34c759] text-sm mt-4 block'; a.classList.remove('hidden'); });
 
         socket.on('login_success', function(user) {
             myUsername = user.username; document.getElementById('my-profile-name').textContent = user.username;
@@ -202,22 +247,18 @@
         });
 
         function urlBase64ToUint8Array(base64String) { const padding = '='.repeat((4 - base64String.length % 4) % 4); const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/'); const rawData = window.atob(base64); const outputArray = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); } return outputArray; }
-
-        async function setupPushNotifications() {
-            if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
-                try {
-                    const register = await navigator.serviceWorker.register('/sw.js?v=6');
-                    const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) });
-                    socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription)));
-                } catch(e) { console.log("PUSH no activado", e); }
-            }
-        }
+        async function setupPushNotifications() { if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') { try { const register = await navigator.serviceWorker.register('/sw.js?v=6'); const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) }); socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription))); } catch(e) {} } }
 
         socket.on('load_initial_data', function(data) { 
             allMessages = data.messages; 
             data.contacts.forEach(function(c) { contacts[c.username] = c; }); 
-            typingStatus = {}; unreadCounts = {};
-            allMessages.forEach(function(m) { if (m.receiver === myUsername && m.status === 'sent') { unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; } });
+            typingStatus = {}; 
+            
+            // Guardar en caché
+            localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(allMessages));
+            localStorage.setItem('sg_contacts_' + myUsername, JSON.stringify(contacts));
+            
+            calculateUnread();
             renderUserList(); 
             if(activeChat) { socket.emit('mark_read', activeChat); unreadCounts[activeChat] = 0; renderMessages(); renderUserList(); }
         });
@@ -227,12 +268,7 @@
         function addContact() { requestPushPermission(); const val = prompt("Nombre de usuario o Teléfono:"); if(val) socket.emit('search_contact', val.trim()); }
         socket.on('contact_found', function(user) { contacts[user.username] = user; openChat(user.username); });
 
-        // AMPLIAR FOTO DE PERFIL DEL HEADER
-        function expandProfilePic() {
-            if(activeChat && contacts[activeChat] && contacts[activeChat].profilePic) {
-                openImageModal(contacts[activeChat].profilePic);
-            }
-        }
+        function expandProfilePic() { if(activeChat && contacts[activeChat] && contacts[activeChat].profilePic) { openImageModal(contacts[activeChat].profilePic); } }
 
         function renderUserList() {
             const list = document.getElementById('user-list'); list.innerHTML = "";
@@ -240,18 +276,24 @@
                 const chatMsgs = allMessages.filter(function(m) { return (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target); });
                 const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
                 let preview = "Toca para chatear";
-                if (lastMsg) { if (lastMsg.deleted) preview = "🚫 Eliminado"; else if (lastMsg.viewOnce && !lastMsg.viewed) preview = '🖼️ Foto (1 vez)'; else if (lastMsg.viewOnce && lastMsg.viewed) preview = '🖼️ Abierto'; else if (lastMsg.type === 'image') preview = '📷 Imagen'; else if (lastMsg.type === 'audio') preview = '🎤 Nota de voz'; else preview = lastMsg.text; }
-                if (typingStatus[target]) preview = "<span class='text-blue-400 italic font-medium'>escribiendo...</span>";
+                if (lastMsg) { if (lastMsg.deleted) preview = "🚫 Eliminado"; else if (lastMsg.viewOnce && !lastMsg.viewed) preview = '🖼️ Foto'; else if (lastMsg.type === 'image') preview = '📷 Imagen'; else if (lastMsg.type === 'audio') preview = '🎤 Nota de voz'; else preview = lastMsg.text; }
+                if (typingStatus[target]) preview = "<span class='text-[#0a84ff] block truncate'>escribiendo...</span>";
                 
-                const isOnline = onlineUsers.includes(target) ? "<div class='absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-zinc-950'></div>" : "";
+                const isOnline = onlineUsers.includes(target) ? "<div class='absolute bottom-0 right-0 w-3 h-3 bg-[#34c759] rounded-full border-2 border-black'></div>" : "";
                 const unread = unreadCounts[target] || 0; const displayName = getDisplayName(target); const pic = contacts[target].profilePic;
-                const avatarHtml = pic ? "<img src='" + pic + "' class='w-12 h-12 rounded-full object-cover'>" : "<div class='w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-xl'>👤</div>";
+                const avatarHtml = pic ? "<img src='" + pic + "' class='w-[46px] h-[46px] rounded-full object-cover'>" : "<div class='w-[46px] h-[46px] rounded-full bg-[#3a3a3c] flex items-center justify-center text-xl'>👤</div>";
                 
-                let htmlStr = "<div class='flex items-center gap-3 overflow-hidden w-3/4'><div class='relative flex-shrink-0'>" + avatarHtml + isOnline + "</div><div class='truncate w-full'><span class='font-bold text-zinc-100 block'>" + displayName + "</span><span class='text-xs text-zinc-400 block truncate'>" + preview + "</span></div></div>";
-                if(unread > 0) htmlStr += "<div class='bg-blue-600 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full'>" + unread + "</div>";
+                let unreadHtml = unread > 0 ? "<div class='bg-[#0a84ff] text-white text-[12px] font-semibold w-5 h-5 flex items-center justify-center rounded-full'>" + unread + "</div>" : "";
+                let timeHtml = lastMsg ? "<span class='text-[13px] text-[#8e8e93]'>" + lastMsg.time + "</span>" : "";
+
+                const div = document.createElement('div'); div.className = "chat-tab flex items-center pl-4 py-2 " + (activeChat === target ? "active-tab" : ""); 
+                div.innerHTML = "<div class='relative flex-shrink-0'>" + avatarHtml + isOnline + "</div>" +
+                                "<div class='flex-1 ml-3 ios-divider py-2 pr-4'>" +
+                                  "<div class='flex justify-between items-center'><span class='font-semibold text-[17px] text-white'>" + displayName + "</span>" + timeHtml + "</div>" +
+                                  "<div class='flex justify-between items-center mt-0.5'><span class='text-[15px] text-[#8e8e93] block truncate pr-2'>" + preview + "</span>" + unreadHtml + "</div>" +
+                                "</div>";
                 
-                const div = document.createElement('div'); div.className = "chat-tab p-4 border-b border-zinc-900/50 flex items-center justify-between " + (activeChat === target ? "active-tab" : ""); div.innerHTML = htmlStr;
-                let pressTimer; const startPress = function(e) { pressTimer = setTimeout(function() { if(confirm("¿Eliminar conversación con " + displayName + "?")) socket.emit('delete_chat', target); }, 800); }; const endPress = function() { clearTimeout(pressTimer); };
+                let pressTimer; const startPress = function(e) { pressTimer = setTimeout(function() { if(confirm("¿Eliminar chat con " + displayName + "?")) socket.emit('delete_chat', target); }, 800); }; const endPress = function() { clearTimeout(pressTimer); };
                 div.onclick = function() { openChat(target); }; div.addEventListener('mousedown', startPress); div.addEventListener('touchstart', startPress, {passive: true}); div.addEventListener('mouseup', endPress); div.addEventListener('mouseleave', endPress); div.addEventListener('touchend', endPress); div.addEventListener('touchcancel', endPress); div.oncontextmenu = function(e) { e.preventDefault(); return false; };
                 list.appendChild(div);
             });
@@ -259,45 +301,32 @@
 
         function openChat(targetUser) { requestPushPermission(); activeChat = targetUser; unreadCounts[targetUser] = 0; document.body.classList.add('mobile-chat-active'); document.getElementById('empty-chat').classList.add('hidden'); document.getElementById('active-chat-header').classList.remove('hidden'); document.getElementById('form').classList.remove('hidden'); document.getElementById('chat-title').textContent = getDisplayName(targetUser); updateAvatarDisplay('active-pic', 'active-pic-placeholder', contacts[targetUser].profilePic); socket.emit('mark_read', targetUser); renderMessages(); renderUserList(); }
         function closeChatMobile() { activeChat = ""; document.body.classList.remove('mobile-chat-active'); renderUserList(); }
-        function toggleViewOnce() { isViewOnce = !isViewOnce; const btn = document.getElementById('view-once-btn'); if(isViewOnce) { btn.classList.remove('text-zinc-500'); btn.classList.add('text-blue-400', 'font-bold', 'bg-blue-900/30', 'rounded-full'); } else { btn.classList.add('text-zinc-500'); btn.classList.remove('text-blue-400', 'font-bold', 'bg-blue-900/30', 'rounded-full'); } }
+        function toggleViewOnce() { isViewOnce = !isViewOnce; const btn = document.getElementById('view-once-btn'); if(isViewOnce) { btn.classList.remove('text-zinc-500'); btn.classList.add('text-[#0a84ff]', 'font-bold'); } else { btn.classList.add('text-zinc-500'); btn.classList.remove('text-[#0a84ff]', 'font-bold'); } }
         function viewOnceImage(id, src) { openImageModal(src); socket.emit('mark_viewed', id); const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); } }
-        socket.on('message_viewed', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); renderUserList(); } });
+        socket.on('message_viewed', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m) { m.viewed = true; m.text = "destruido"; renderMessages(); localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); renderUserList(); } });
         function openImageModal(src) { const modal = document.getElementById('image-modal'); const img = document.getElementById('modal-img'); img.src = src; modal.classList.remove('hidden'); setTimeout(function() { modal.classList.remove('opacity-0'); img.classList.remove('scale-95'); img.classList.add('scale-100'); }, 10); }
-        function closeImageModal() { const modal = document.getElementById('image-modal'); const img = document.getElementById('modal-img'); modal.classList.add('opacity-0'); img.classList.remove('scale-100'); img.classList.add('scale-95'); setTimeout(function() { modal.classList.add('hidden'); img.src = ""; }, 300); }
+        function closeImageModal() { const modal = document.getElementById('image-modal'); const img = document.getElementById('modal-img'); modal.classList.add('opacity-0'); img.classList.remove('scale-100'); img.classList.add('scale-95'); setTimeout(function() { modal.classList.add('hidden'); img.src = ""; }, 200); }
 
-        // MÁQUINA DE CONSTRUCCIÓN DE BURBUJAS (ESTILO iMESSAGE)
         function createMessageElement(msg) {
-            const isMe = msg.sender === myUsername; 
-            const div = document.createElement('div'); 
-            div.className = "flex flex-col mt-[2px] " + (isMe ? "items-end" : "items-start");
-            
+            const isMe = msg.sender === myUsername; const div = document.createElement('div'); div.className = "flex flex-col mt-[2px] " + (isMe ? "items-end" : "items-start");
             let contentHTML = "";
             if (msg.deleted) { contentHTML = "<span class='msg-deleted'>🚫 Eliminado</span>"; } 
             else if (msg.type === 'image') { 
-                if (msg.viewOnce) { 
-                    if (msg.viewed) contentHTML = "<span class='italic text-zinc-400 flex items-center gap-2'>⭕ Abierto</span>"; 
-                    else if (isMe) contentHTML = "<span class='italic text-zinc-300 flex items-center gap-2'>① Foto (1 vez)</span>"; 
-                    else contentHTML = "<button onclick=\"viewOnceImage('" + msg._id + "', '" + msg.text + "')\" class='font-bold text-white bg-blue-500/80 px-4 py-2 rounded-full flex items-center gap-2 transition-transform hover:scale-105'>① Toca para ver</button>"; 
-                } else { contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-2xl max-w-[200px] sm:max-w-[250px] mt-1 shadow-sm cursor-pointer hover:opacity-80 transition-opacity'>"; } 
+                if (msg.viewOnce) { if (msg.viewed) contentHTML = "<span class='italic text-[#8e8e93]'>⭕ Abierto</span>"; else if (isMe) contentHTML = "<span class='italic text-white'>① Foto</span>"; else contentHTML = "<button onclick=\"viewOnceImage('" + msg._id + "', '" + msg.text + "')\" class='font-semibold text-white bg-blue-500 px-4 py-2 rounded-full'>① Ver</button>"; } 
+                else { contentHTML = "<img src='" + msg.text + "' onclick=\"openImageModal('" + msg.text + "')\" class='rounded-xl max-w-[200px] sm:max-w-[250px] cursor-pointer hover:opacity-80 transition-opacity'>"; } 
             } 
-            else if (msg.type === 'audio') { contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60 mt-1'></audio>"; } 
-            else { contentHTML = "<p class='text-[15px] leading-snug'>" + msg.text + "</p>"; }
+            else if (msg.type === 'audio') { contentHTML = "<audio controls src='" + msg.text + "' class='h-8 w-48 sm:w-60'></audio>"; } 
+            else { contentHTML = "<p class='text-[16px] leading-[1.3]'>" + msg.text + "</p>"; }
             
-            let ticks = isMe && !msg.deleted ? (msg.status === 'read' ? "<span class='text-blue-300 font-bold text-[11px] ml-1'>✓✓</span>" : "<span class='text-zinc-400 font-bold text-[11px] ml-1'>✓✓</span>") : "";
-            
-            // iMessage Style: Redondeado extremo (3xl) y colitas asimétricas
-            const bubbleStyle = isMe ? "bg-blue-600 text-white rounded-l-3xl rounded-tr-3xl rounded-br-sm" : "bg-zinc-700 text-white rounded-r-3xl rounded-tl-3xl rounded-bl-sm";
-            
-            const bubble = document.createElement('div'); 
-            bubble.className = "msg-bubble max-w-[80%] px-4 py-2 shadow-sm " + bubbleStyle; 
-            bubble.innerHTML = contentHTML + "<div class='flex justify-end items-center mt-0.5'><span class='text-[9px] opacity-70'>" + msg.time + "</span>" + ticks + "</div>";
+            let ticks = isMe && !msg.deleted ? (msg.status === 'read' ? "<span class='text-blue-300 font-bold text-[11px] ml-1'>✓✓</span>" : "<span class='text-white/50 font-bold text-[11px] ml-1'>✓✓</span>") : "";
+            const bubbleStyle = isMe ? "bubble-me" : "bubble-them";
+            const bubble = document.createElement('div'); bubble.className = "msg-bubble max-w-[80%] px-3.5 py-2 " + bubbleStyle; 
+            bubble.innerHTML = contentHTML + "<div class='flex justify-end items-center mt-0.5'><span class='text-[10px] opacity-60'>" + msg.time + "</span>" + ticks + "</div>";
             
             if (isMe && !msg.deleted) { let pressTimer; const startPress = function(e) { pressTimer = setTimeout(function() { if(confirm("¿Eliminar este mensaje?")) socket.emit('delete_message', msg._id); }, 600); }; const endPress = function() { clearTimeout(pressTimer); }; bubble.addEventListener('mousedown', startPress); bubble.addEventListener('touchstart', startPress, {passive: true}); bubble.addEventListener('mouseup', endPress); bubble.addEventListener('mouseleave', endPress); bubble.addEventListener('touchend', endPress); bubble.addEventListener('touchcancel', endPress); bubble.oncontextmenu = function(e) { e.preventDefault(); return false; }; }
-            div.appendChild(bubble); 
-            return div;
+            div.appendChild(bubble); return div;
         }
 
-        // RENDERIZADO COMPLETO (Solo al abrir el chat)
         function renderMessages() {
             if(!activeChat) return; const box = document.getElementById('messages'); box.innerHTML = ''; 
             const chatMsgs = allMessages.filter(function(m) { return (m.sender === activeChat && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === activeChat); });
@@ -305,31 +334,24 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- SOLUCIÓN DE VELOCIDAD: INYECCIÓN DIRECTA ---
         socket.on('chat message', function(msg) {
-            allMessages.push(msg);
+            allMessages.push(msg); localStorage.setItem('sg_msgs_' + myUsername, JSON.stringify(allMessages));
             typingStatus[msg.sender] = false;
             
-            // En vez de borrar toda la pantalla y redibujar 200 mensajes, solo INYECTAMOS el nuevo
             if (activeChat === msg.sender || (msg.sender === myUsername && msg.receiver === activeChat)) {
-                const box = document.getElementById('messages');
-                box.appendChild(createMessageElement(msg));
-                box.scrollTop = box.scrollHeight; // Bajar la pantalla
+                const box = document.getElementById('messages'); box.appendChild(createMessageElement(msg)); box.scrollTop = box.scrollHeight;
                 if(msg.sender !== myUsername) socket.emit('mark_read', msg.sender);
             }
 
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
-                if (!document.hidden) {
-                    document.getElementById('notif-sound').play().catch(function(){});
-                    if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
-                } else {
+                if (!document.hidden) { document.getElementById('notif-sound').play().catch(function(){}); if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } } 
+                else {
                     if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
                     if ("Notification" in window && Notification.permission === "granted") {
                         let notifBody = msg.type === 'image' ? '📷 Imagen' : (msg.type === 'audio' ? '🎤 Nota de voz' : msg.text);
-                        if (msg.viewOnce) notifBody = '🖼️ Foto efímera';
                         navigator.serviceWorker.getRegistration().then(function(reg) {
-                            if (reg) { reg.showNotification(getDisplayName(msg.sender), { body: notifBody, icon: contacts[msg.sender].profilePic || "/icon.svg", badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg' }); } 
+                            if (reg) { reg.showNotification(getDisplayName(msg.sender), { body: notifBody, icon: contacts[msg.sender].profilePic || "/icon.svg", vibrate: [300, 100, 400], tag: 'sendguz-msg' }); } 
                             else { new Notification(getDisplayName(msg.sender), { body: notifBody, icon: contacts[msg.sender].profilePic || "/icon.svg" }); }
                         });
                     }
@@ -338,10 +360,10 @@
             renderUserList(); 
         });
 
-        socket.on('chat_deleted', function(target) { allMessages = allMessages.filter(function(m) { return !( (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target) ); }); delete contacts[target]; if(activeChat === target) { closeChatMobile(); document.getElementById('empty-chat').classList.remove('hidden'); document.getElementById('active-chat-header').classList.add('hidden'); document.getElementById('form').classList.add('hidden'); } renderUserList(); });
+        socket.on('chat_deleted', function(target) { allMessages = allMessages.filter(function(m) { return !( (m.sender === target && m.receiver === myUsername) || (m.sender === myUsername && m.receiver === target) ); }); delete contacts[target]; localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); if(activeChat === target) { closeChatMobile(); document.getElementById('empty-chat').classList.remove('hidden'); document.getElementById('active-chat-header').classList.add('hidden'); document.getElementById('form').classList.add('hidden'); } renderUserList(); });
         socket.on('online_status', function(users) { onlineUsers = users; renderUserList(); });
-        socket.on('messages_read', function(reader) { allMessages.forEach(function(m) { if (m.sender === myUsername && m.receiver === reader) m.status = 'read'; }); if(activeChat === reader) renderMessages(); });
-        socket.on('message_deleted', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m){ m.deleted = true; if(activeChat === m.receiver || activeChat === m.sender) renderMessages(); renderUserList(); } });
+        socket.on('messages_read', function(reader) { allMessages.forEach(function(m) { if (m.sender === myUsername && m.receiver === reader) m.status = 'read'; }); localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); if(activeChat === reader) renderMessages(); });
+        socket.on('message_deleted', function(id) { const m = allMessages.find(function(x) { return x._id === id; }); if(m){ m.deleted = true; localStorage.setItem('sg_msgs_'+myUsername, JSON.stringify(allMessages)); if(activeChat === m.receiver || activeChat === m.sender) renderMessages(); renderUserList(); } });
 
         const input = document.getElementById('input'); input.addEventListener('input', function() { const hasText = input.value.trim().length > 0; document.getElementById('send-btn').classList.toggle('hidden', !hasText); document.getElementById('mic-btn').classList.toggle('hidden', hasText); socket.emit('typing', { isTyping: hasText, receiver: activeChat }); });
         document.getElementById('form').addEventListener('submit', function(e) { e.preventDefault(); document.getElementById('emoji-picker').classList.add('hidden'); if (input.value.trim()) { socket.emit('chat message', { text: input.value, type: 'text', receiver: activeChat }); input.value = ''; socket.emit('typing', { isTyping: false, receiver: activeChat }); document.getElementById('send-btn').classList.add('hidden'); document.getElementById('mic-btn').classList.remove('hidden'); } });
@@ -354,14 +376,10 @@
         function toggleEmojis() { document.getElementById('emoji-picker').classList.toggle('hidden'); }
         function addEmoji(e) { input.value += e; input.dispatchEvent(new Event('input')); }
         
-        socket.on('typing', function(d) { 
-            typingStatus[d.user] = d.isTyping; 
-            if(activeChat === d.user) { document.getElementById('chat-status').textContent = d.isTyping ? 'escribiendo...' : (onlineUsers.includes(d.user) ? 'en línea' : ''); }
-            renderUserList(); 
-        });
+        socket.on('typing', function(d) { typingStatus[d.user] = d.isTyping; renderUserList(); if(activeChat === d.user) { document.getElementById('chat-status').textContent = d.isTyping ? 'Escribiendo...' : ''; } });
 
-        async function startCall(isVideo) { if(!activeChat) return; currentCallUser = activeChat; currentCallIsVideo = isVideo; document.getElementById('video-call-screen').classList.remove('hidden'); document.getElementById('call-status-overlay').classList.remove('hidden'); document.getElementById('accept-call-btn').classList.add('hidden'); document.getElementById('call-icon').textContent = isVideo ? "📹" : "📞"; document.getElementById('call-status-text').textContent = (isVideo ? "Videollamada" : "Llamada de voz") + " a " + getDisplayName(activeChat) + "..."; if(!isVideo) { document.getElementById('remote-video').classList.add('hidden'); document.getElementById('local-video').classList.add('hidden'); document.getElementById('audio-call-avatar').classList.remove('hidden'); } else { document.getElementById('remote-video').classList.remove('hidden'); document.getElementById('local-video').classList.remove('hidden'); document.getElementById('audio-call-avatar').classList.add('hidden'); } try { localStream = await navigator.mediaDevices.getUserMedia({video: isVideo, audio: true}); if(isVideo) document.getElementById('local-video').srcObject = localStream; socket.emit('call_user', { userToCall: activeChat, isVideo: isVideo }); } catch(e) { alert("Permiso denegado"); endCall(); } }
-        socket.on('incoming_call', async function(data) { currentCallUser = data.from; currentCallIsVideo = data.isVideo; document.getElementById('video-call-screen').classList.remove('hidden'); document.getElementById('call-status-overlay').classList.remove('hidden'); document.getElementById('accept-call-btn').classList.remove('hidden'); document.getElementById('call-icon').textContent = data.isVideo ? "📹" : "📞"; document.getElementById('call-status-text').textContent = (data.isVideo ? "Videollamada" : "Llamada de voz") + " de " + getDisplayName(data.from); if(!data.isVideo) { document.getElementById('remote-video').classList.add('hidden'); document.getElementById('local-video').classList.add('hidden'); document.getElementById('audio-call-avatar').classList.remove('hidden'); } else { document.getElementById('remote-video').classList.remove('hidden'); document.getElementById('local-video').classList.remove('hidden'); document.getElementById('audio-call-avatar').classList.add('hidden'); } });
+        async function startCall(isVideo) { if(!activeChat) return; currentCallUser = activeChat; currentCallIsVideo = isVideo; document.getElementById('video-call-screen').classList.remove('hidden'); document.getElementById('call-status-overlay').classList.remove('hidden'); document.getElementById('accept-call-btn').classList.add('hidden'); document.getElementById('call-icon').textContent = isVideo ? "📹" : "📞"; document.getElementById('call-status-text').textContent = (isVideo ? "Videollamada" : "Llamada") + " a " + getDisplayName(activeChat) + "..."; if(!isVideo) { document.getElementById('remote-video').classList.add('hidden'); document.getElementById('local-video').classList.add('hidden'); document.getElementById('audio-call-avatar').classList.remove('hidden'); } else { document.getElementById('remote-video').classList.remove('hidden'); document.getElementById('local-video').classList.remove('hidden'); document.getElementById('audio-call-avatar').classList.add('hidden'); } try { localStream = await navigator.mediaDevices.getUserMedia({video: isVideo, audio: true}); if(isVideo) document.getElementById('local-video').srcObject = localStream; socket.emit('call_user', { userToCall: activeChat, isVideo: isVideo }); } catch(e) { alert("Permiso denegado"); endCall(); } }
+        socket.on('incoming_call', async function(data) { currentCallUser = data.from; currentCallIsVideo = data.isVideo; document.getElementById('video-call-screen').classList.remove('hidden'); document.getElementById('call-status-overlay').classList.remove('hidden'); document.getElementById('accept-call-btn').classList.remove('hidden'); document.getElementById('call-icon').textContent = data.isVideo ? "📹" : "📞"; document.getElementById('call-status-text').textContent = (data.isVideo ? "Videollamada" : "Llamada") + " de " + getDisplayName(data.from); if(!data.isVideo) { document.getElementById('remote-video').classList.add('hidden'); document.getElementById('local-video').classList.add('hidden'); document.getElementById('audio-call-avatar').classList.remove('hidden'); } else { document.getElementById('remote-video').classList.remove('hidden'); document.getElementById('local-video').classList.remove('hidden'); document.getElementById('audio-call-avatar').classList.add('hidden'); } });
         async function acceptCall() { document.getElementById('call-status-text').textContent = "Conectando..."; document.getElementById('accept-call-btn').classList.add('hidden'); try { localStream = await navigator.mediaDevices.getUserMedia({video: currentCallIsVideo, audio: true}); if(currentCallIsVideo) document.getElementById('local-video').srcObject = localStream; socket.emit('accept_call', { to: currentCallUser }); } catch(e) { alert("Permiso denegado"); endCall(); } }
         socket.on('call_accepted', async function(data) { document.getElementById('call-status-overlay').classList.add('hidden'); peerConnection = new RTCPeerConnection(servers); localStream.getTracks().forEach(function(t) { peerConnection.addTrack(t, localStream); }); peerConnection.ontrack = function(e) { document.getElementById('remote-video').srcObject = e.streams[0]; }; peerConnection.onicecandidate = function(e) { if(e.candidate) socket.emit('webrtc_ice_candidate', { to: currentCallUser, candidate: e.candidate }); }; const offer = await peerConnection.createOffer(); await peerConnection.setLocalDescription(offer); socket.emit('webrtc_offer', { to: currentCallUser, sdp: peerConnection.localDescription }); });
         socket.on('webrtc_offer', async function(data) { document.getElementById('call-status-overlay').classList.add('hidden'); peerConnection = new RTCPeerConnection(servers); localStream.getTracks().forEach(function(t) { peerConnection.addTrack(t, localStream); }); peerConnection.ontrack = function(e) { document.getElementById('remote-video').srcObject = e.streams[0]; }; peerConnection.onicecandidate = function(e) { if(e.candidate) socket.emit('webrtc_ice_candidate', { to: data.from, candidate: e.candidate }); }; await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp)); const answer = await peerConnection.createAnswer(); await peerConnection.setLocalDescription(answer); socket.emit('webrtc_answer', { to: data.from, sdp: peerConnection.localDescription }); });
