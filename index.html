@@ -172,54 +172,33 @@
                 socket.emit('status', 'active'); 
                 const savedUser = localStorage.getItem('sg_user');
                 const savedPass = localStorage.getItem('sg_pass');
-                if (savedUser && savedPass) {
-                    socket.emit('login', {username: savedUser, password: savedPass});
-                }
+                if (savedUser && savedPass) { socket.emit('login', {username: savedUser, password: savedPass}); }
             } else {
                 socket.emit('status', 'background');
             }
         });
 
         window.onload = function() {
-            const savedUser = localStorage.getItem('sg_user');
-            const savedPass = localStorage.getItem('sg_pass');
-            if (savedUser && savedPass) {
-                socket.emit('login', {username: savedUser, password: savedPass});
-            } else {
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('login-screen').classList.remove('hidden');
-            }
+            const savedUser = localStorage.getItem('sg_user'); const savedPass = localStorage.getItem('sg_pass');
+            if (savedUser && savedPass) { socket.emit('login', {username: savedUser, password: savedPass}); } 
+            else { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
         };
 
         socket.on('connect', function() {
-            const savedUser = localStorage.getItem('sg_user');
-            const savedPass = localStorage.getItem('sg_pass');
-            if (savedUser && savedPass && myUsername !== "") {
-                socket.emit('login', {username: savedUser, password: savedPass});
-            }
+            const savedUser = localStorage.getItem('sg_user'); const savedPass = localStorage.getItem('sg_pass');
+            if (savedUser && savedPass && myUsername !== "") { socket.emit('login', {username: savedUser, password: savedPass}); }
         });
 
         function logout() { if(confirm("¿Cerrar sesión?")) { localStorage.removeItem('sg_user'); localStorage.removeItem('sg_pass'); location.reload(); } }
 
         function requestPushPermission() {
             if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-                Notification.requestPermission().then(function(permission) {
-                    if (permission === 'granted') setupPushNotifications();
-                });
+                Notification.requestPermission().then(function(permission) { if (permission === 'granted') setupPushNotifications(); });
             }
         }
 
-        function login() { 
-            requestPushPermission();
-            const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); 
-            if(u && pw) { localStorage.setItem('sg_temp_pass', pw); socket.emit('login', {username: u, password: pw}); } 
-        }
-        
-        function register() { 
-            requestPushPermission(); 
-            const u = document.getElementById('l-user').value.trim(); const p = document.getElementById('l-phone').value.trim(); const pw = document.getElementById('l-pass').value.trim(); 
-            if(u && p && pw) socket.emit('register', {username: u, phone: p, password: pw}); 
-        }
+        function login() { requestPushPermission(); const u = document.getElementById('l-user').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && pw) { localStorage.setItem('sg_temp_pass', pw); socket.emit('login', {username: u, password: pw}); } }
+        function register() { requestPushPermission(); const u = document.getElementById('l-user').value.trim(); const p = document.getElementById('l-phone').value.trim(); const pw = document.getElementById('l-pass').value.trim(); if(u && p && pw) socket.emit('register', {username: u, phone: p, password: pw}); }
 
         socket.on('auth_error', function(msg) { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-red-400 text-sm mt-4 block'; a.classList.remove('hidden'); });
         socket.on('register_success', function(msg) { const a = document.getElementById('auth-msg'); a.textContent = msg; a.className = 'text-green-400 text-sm mt-4 block'; a.classList.remove('hidden'); });
@@ -230,9 +209,7 @@
             if(localStorage.getItem('sg_temp_pass')) { localStorage.setItem('sg_pass', localStorage.getItem('sg_temp_pass')); localStorage.removeItem('sg_temp_pass'); }
             updateAvatarDisplay('my-pic', 'my-pic-placeholder', user.profilePic);
             document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('login-screen').classList.add('hidden'); document.getElementById('chat-screen').classList.remove('hidden'); document.getElementById('chat-screen').classList.add('flex');
-            
-            socket.emit('status', 'active'); 
-            setupPushNotifications(); 
+            socket.emit('status', 'active'); setupPushNotifications(); 
         });
 
         function urlBase64ToUint8Array(base64String) { const padding = '='.repeat((4 - base64String.length % 4) % 4); const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/'); const rawData = window.atob(base64); const outputArray = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); } return outputArray; }
@@ -240,8 +217,7 @@
         async function setupPushNotifications() {
             if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
                 try {
-                    // VERSION 3 DEL FANTASMA: Obliga al iPhone a actualizar el Service Worker
-                    const register = await navigator.serviceWorker.register('/sw.js?v=3');
+                    const register = await navigator.serviceWorker.register('/sw.js?v=4');
                     const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) });
                     socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription)));
                 } catch(e) { console.log("PUSH no activado", e); }
@@ -253,23 +229,13 @@
             data.contacts.forEach(function(c) { contacts[c.username] = c; }); 
             typingStatus = {}; 
             
-            // --- LA SOLUCIÓN MAESTRA: RECALCULAR MENSAJES NO LEÍDOS MATEMÁTICAMENTE ---
             unreadCounts = {};
             allMessages.forEach(function(m) {
-                // Si el mensaje es para mí, y aún dice "sent" (enviado pero no leído)
-                if (m.receiver === myUsername && m.status === 'sent') {
-                    unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1;
-                }
+                if (m.receiver === myUsername && m.status === 'sent') { unreadCounts[m.sender] = (unreadCounts[m.sender] || 0) + 1; }
             });
 
             renderUserList(); 
-            if(activeChat) {
-                // Si justo abriste la app estando dentro del chat, márcarlos como leídos
-                socket.emit('mark_read', activeChat);
-                unreadCounts[activeChat] = 0;
-                renderMessages();
-                renderUserList();
-            }
+            if(activeChat) { socket.emit('mark_read', activeChat); unreadCounts[activeChat] = 0; renderMessages(); renderUserList(); }
         });
 
         function renameContact() { if(!activeChat) return; const currentName = getDisplayName(activeChat); const newAlias = prompt("Guardar contacto como:", currentName); if(newAlias !== null && newAlias.trim() !== "") { aliases[activeChat] = newAlias.trim(); localStorage.setItem('sg_aliases', JSON.stringify(aliases)); document.getElementById('chat-title').textContent = aliases[activeChat]; renderUserList(); } }
@@ -328,11 +294,23 @@
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
                 
+                // NOTIFICACIÓN BLINDADA PARA LAPTOP/ANDROID Y SONIDO EN VIVO
                 if (!document.hidden) {
                     document.getElementById('notif-sound').play().catch(function(){});
-                    if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else { socket.emit('mark_read', msg.sender); }
+                    if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else socket.emit('mark_read', msg.sender);
                 } else {
                     if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
+                    
+                    // Disparo local de emergencia por si Web Push falla en la Laptop
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        let notifBody = msg.type === 'image' ? '📷 Imagen' : (msg.type === 'audio' ? '🎤 Nota de voz' : msg.text);
+                        if (msg.viewOnce) notifBody = '🖼️ Foto efímera';
+                        
+                        navigator.serviceWorker.getRegistration().then(function(reg) {
+                            if (reg) { reg.showNotification(getDisplayName(msg.sender), { body: notifBody, icon: contacts[msg.sender].profilePic || "/icon.svg", badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg' }); } 
+                            else { new Notification(getDisplayName(msg.sender), { body: notifBody, icon: contacts[msg.sender].profilePic || "/icon.svg" }); }
+                        });
+                    }
                 }
             }
             renderMessages(); renderUserList(); 
