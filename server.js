@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http, { maxHttpBufferSize: 20 * 1024 * 1024 });
+const io = require('socket.io')(http, { maxHttpBufferSize: 50 * 1024 * 1024 });
 const mongoose = require('mongoose');
 const webpush = require('web-push');
 
@@ -31,7 +31,8 @@ app.get('/sw.js', (req, res) => {
     self.addEventListener('push', function(e) {
       let data = { title: 'Nuevo mensaje', body: 'Tienes un mensaje en SendGuz' };
       if (e.data) { data = e.data.json(); }
-      e.waitUntil(self.registration.showNotification(data.title, { body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg', renotify: true, data: { url: '/' } }));
+      const options = { body: data.body, icon: '/icon.svg', badge: '/icon.svg', vibrate: [300, 100, 400], tag: 'sendguz-msg', renotify: true, data: { url: '/' } };
+      e.waitUntil(self.registration.showNotification(data.title, options));
     });
     self.addEventListener('notificationclick', function(e) {
       e.notification.close();
@@ -55,7 +56,8 @@ const userSchema = new mongoose.Schema({
   password: String, profilePic: { type: String, default: '' },
   pushSubscription: { type: Object, default: null } 
 });
-const User = mongoose.model('User', userSchema);
+// OPTIMIZACIÓN: Índices para búsquedas ultrarrápidas
+userSchema.index({ username: 1 });
 
 const messageSchema = new mongoose.Schema({
   sender: String, receiver: String, text: String, type: String,
@@ -63,19 +65,26 @@ const messageSchema = new mongoose.Schema({
   status: { type: String, default: 'sent' }, deleted: { type: Boolean, default: false },
   viewOnce: { type: Boolean, default: false }, viewed: { type: Boolean, default: false }
 });
+// OPTIMIZACIÓN: Índices para cargar chats rapidísimo
+messageSchema.index({ sender: 1, receiver: 1 });
+messageSchema.index({ timestamp: -1 });
+
+const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 
 let connectedUsers = {};
 let userStatus = {}; 
 
 io.on('connection', (socket) => {
+  
   socket.on('save_subscription', async (sub) => { if(socket.username) await User.updateOne({ username: socket.username }, { pushSubscription: sub }); });
   socket.on('status', (state) => { if(socket.username) userStatus[socket.username] = state; });
 
   socket.on('register', async (data) => {
     if (!mongoURI) return socket.emit('auth_error', 'BD no conectada');
     try {
-      const existU = await User.findOne({ username: data.username }); const existP = await User.findOne({ phone: data.phone });
+      const existU = await User.findOne({ username: data.username });
+      const existP = await User.findOne({ phone: data.phone });
       if (existU || existP) return socket.emit('auth_error', 'Usuario o Teléfono ya existe.');
       const newUser = new User({ username: data.username, phone: data.phone, password: data.password });
       await newUser.save(); socket.emit('register_success', '¡Cuenta creada con éxito!');
@@ -85,10 +94,20 @@ io.on('connection', (socket) => {
   socket.on('login', async (data) => {
     const user = await User.findOne({ username: data.username, password: data.password });
     if (!user) return socket.emit('auth_error', 'Datos incorrectos.');
-    socket.username = user.username; connectedUsers[user.username] = socket.id; userStatus[user.username] = 'active'; 
-    const myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] }).sort({ timestamp: 1 });
+    
+    socket.username = user.username; 
+    connectedUsers[user.username] = socket.id;
+    userStatus[user.username] = 'active'; 
+    
+    // OPTIMIZACIÓN: Solo descargar los últimos 200 mensajes para evitar que la app se trabe
+    let myMsgs = await Message.find({ $or: [{ sender: user.username }, { receiver: user.username }] })
+                              .sort({ timestamp: -1 })
+                              .limit(200);
+    myMsgs = myMsgs.reverse(); // Volver a ponerlos en orden cronológico
+
     const contactsSet = new Set();
     myMsgs.forEach(m => { if (m.sender !== user.username) contactsSet.add(m.sender); if (m.receiver !== user.username) contactsSet.add(m.receiver); });
+    
     const contactsInfo = await User.find({ username: { $in: Array.from(contactsSet) } }, 'username profilePic phone');
     socket.emit('login_success', { username: user.username, profilePic: user.profilePic, phone: user.phone });
     socket.emit('load_initial_data', { messages: myMsgs, contacts: contactsInfo });
@@ -108,19 +127,17 @@ io.on('connection', (socket) => {
 
   socket.on('chat message', async (data) => {
     const timeNow = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
+    
     const newMsg = new Message({ sender: socket.username, receiver: data.receiver, text: data.text, type: data.type, time: timeNow, viewOnce: data.viewOnce || false });
     const savedMsg = await newMsg.save(); 
     socket.emit('chat message', savedMsg); 
 
     const receiverSocket = connectedUsers[data.receiver];
-    
-    // CORRECCIÓN: SIEMPRE enviar al socket, sin importar si está minimizado
-    if (receiverSocket) {
+    if (receiverSocket && userStatus[data.receiver] === 'active') {
         io.to(receiverSocket).emit('chat message', savedMsg); 
     } 
     
-    // Si está minimizado o desconectado, enviar la alerta Push a los servidores de Apple/Google
-    if (!receiverSocket || userStatus[data.receiver] === 'background') {
+    if (!receiverSocket || userStatus[data.receiver] !== 'active') {
         const receiverUser = await User.findOne({username: data.receiver});
         if(receiverUser && receiverUser.pushSubscription) {
             let notifText = data.type === 'image' ? '📷 Imagen' : (data.type === 'audio' ? '🎤 Nota de voz' : data.text);
@@ -149,7 +166,8 @@ io.on('connection', (socket) => {
   socket.on('delete_chat', async (targetUser) => {
     if (!socket.username) return;
     await Message.deleteMany({ $or: [ { sender: socket.username, receiver: targetUser }, { sender: targetUser, receiver: socket.username } ] });
-    const targetSocket = connectedUsers[targetUser]; if (targetSocket) io.to(targetSocket).emit('chat_deleted', socket.username);
+    const targetSocket = connectedUsers[targetUser];
+    if (targetSocket) io.to(targetSocket).emit('chat_deleted', socket.username);
     socket.emit('chat_deleted', targetUser);
   });
 
@@ -167,10 +185,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (socket.username) { 
-        delete connectedUsers[socket.username]; userStatus[socket.username] = 'background'; io.emit('online_status', Object.keys(connectedUsers)); 
+        delete connectedUsers[socket.username]; 
+        userStatus[socket.username] = 'background';
+        io.emit('online_status', Object.keys(connectedUsers)); 
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Servidor V16 corriendo en puerto " + PORT));
+http.listen(PORT, () => console.log("Servidor V17 (Ultra Rápido) corriendo en puerto " + PORT));
