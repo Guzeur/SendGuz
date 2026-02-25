@@ -160,7 +160,16 @@
         let localStream, peerConnection, currentCallUser = "";
         let currentCallIsVideo = true; 
 
-        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        // OPTIMIZACIÓN: Añadimos 5 servidores para acelerar drásticamente la conexión de llamadas
+        const servers = { 
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+            ] 
+        };
         const publicVapidKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuB22-xO3U-2XMDn-R_cewgKMc';
 
         let aliases = JSON.parse(localStorage.getItem('sg_aliases')) || {};
@@ -173,9 +182,7 @@
                 const savedUser = localStorage.getItem('sg_user');
                 const savedPass = localStorage.getItem('sg_pass');
                 if (savedUser && savedPass) { socket.emit('login', {username: savedUser, password: savedPass}); }
-            } else {
-                socket.emit('status', 'background');
-            }
+            } else { socket.emit('status', 'background'); }
         });
 
         window.onload = function() {
@@ -217,7 +224,7 @@
         async function setupPushNotifications() {
             if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission === 'granted') {
                 try {
-                    const register = await navigator.serviceWorker.register('/sw.js?v=4');
+                    const register = await navigator.serviceWorker.register('/sw.js?v=5');
                     const subscription = await register.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicVapidKey) });
                     socket.emit('save_subscription', JSON.parse(JSON.stringify(subscription)));
                 } catch(e) { console.log("PUSH no activado", e); }
@@ -294,14 +301,12 @@
             if (msg.sender !== myUsername) {
                 if (!contacts[msg.sender]) { contacts[msg.sender] = { username: msg.sender, profilePic: "" }; }
                 
-                // NOTIFICACIÓN BLINDADA PARA LAPTOP/ANDROID Y SONIDO EN VIVO
                 if (!document.hidden) {
                     document.getElementById('notif-sound').play().catch(function(){});
                     if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; } else socket.emit('mark_read', msg.sender);
                 } else {
                     if (activeChat !== msg.sender) { unreadCounts[msg.sender] = (unreadCounts[msg.sender] || 0) + 1; }
                     
-                    // Disparo local de emergencia por si Web Push falla en la Laptop
                     if ("Notification" in window && Notification.permission === "granted") {
                         let notifBody = msg.type === 'image' ? '📷 Imagen' : (msg.type === 'audio' ? '🎤 Nota de voz' : msg.text);
                         if (msg.viewOnce) notifBody = '🖼️ Foto efímera';
@@ -325,7 +330,33 @@
         document.getElementById('form').addEventListener('submit', function(e) { e.preventDefault(); document.getElementById('emoji-picker').classList.add('hidden'); if (input.value.trim()) { socket.emit('chat message', { text: input.value, type: 'text', receiver: activeChat }); input.value = ''; socket.emit('typing', { isTyping: false, receiver: activeChat }); document.getElementById('send-btn').classList.add('hidden'); document.getElementById('mic-btn').classList.remove('hidden'); } });
 
         async function toggleAudio() { if (!isRecording) { try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(s); mediaRecorder.ondataavailable = function(e) { audioChunks.push(e.data); }; mediaRecorder.onstop = function() { const r = new FileReader(); r.readAsDataURL(new Blob(audioChunks, {type:'audio/webm'})); r.onloadend = function() { socket.emit('chat message', { text: r.result, type: 'audio', receiver: activeChat }); audioChunks = []; }; }; mediaRecorder.start(); isRecording = true; document.getElementById('mic-btn').classList.add('recording'); } catch(e) { alert("Permite el micrófono"); } } else { mediaRecorder.stop(); isRecording = false; document.getElementById('mic-btn').classList.remove('recording'); } }
-        document.getElementById('image-upload').addEventListener('change', function() { const file = this.files[0]; if(file) { if(file.size > 15 * 1024 * 1024) return alert("Muy pesada"); const r = new FileReader(); r.onload = function(e) { socket.emit('chat message', { text: e.target.result, type: 'image', receiver: activeChat, viewOnce: isViewOnce }); if(isViewOnce) toggleViewOnce(); }; r.readAsDataURL(file); this.value = ''; } });
+        
+        // OPTIMIZACIÓN: COMPRESIÓN DE IMÁGENES AL 90% (Adiós Lag)
+        document.getElementById('image-upload').addEventListener('change', function() { 
+            const file = this.files[0]; 
+            if(!file) return;
+            const reader = new FileReader(); 
+            reader.onload = function(e) { 
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+                    let width = img.width; let height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70% calidad
+                    
+                    socket.emit('chat message', { text: dataUrl, type: 'image', receiver: activeChat, viewOnce: isViewOnce }); 
+                    if(isViewOnce) toggleViewOnce(); 
+                };
+                img.src = e.target.result;
+            }; 
+            reader.readAsDataURL(file); this.value = ''; 
+        });
+
         document.getElementById('my-pic-upload').addEventListener('change', function() { const file = this.files[0]; if(file) { const r = new FileReader(); r.onload = function(e) { socket.emit('update_profile_pic', e.target.result); }; r.readAsDataURL(file); } });
         socket.on('profile_pic_updated', function(base64) { updateAvatarDisplay('my-pic', 'my-pic-placeholder', base64); });
         socket.on('contact_pic_updated', function(data) { if(contacts[data.username]) contacts[data.username].profilePic = data.profilePic; renderUserList(); });
@@ -424,3 +455,4 @@
     </script>
 </body>
 </html>
+
